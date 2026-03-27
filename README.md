@@ -1,10 +1,10 @@
-# diy-cake
+# slash-diy
 
 A plugin to clone packages from SDKs you don't quite trust.
 
-## What is diy-cake?
+## What is slash-diy?
 
-diy-cake uses a continuous self-referential loop to iteratively recreate the functionality of third-party packages you'd rather not depend on. Point it at a package, describe what you need, and let it loop until it's built a local, dependency-free replacement.
+slash-diy uses a continuous self-referential loop to iteratively recreate the functionality of third-party packages you'd rather not depend on. Point it at a package, describe what you need, and let it loop until it's built a local, dependency-free replacement.
 
 The underlying engine is a **stop hook loop**: Claude receives the same prompt repeatedly, sees its own previous work in files, and iteratively improves until the task is complete.
 
@@ -105,3 +105,9 @@ Always use `--max-iterations` to prevent infinite loops:
 - Packages with deep platform-specific bindings
 - Cryptographic implementations (use audited libraries)
 - Tasks with unclear success criteria
+
+## For Development
+
+```bash
+claude --plugin-dir .
+```
