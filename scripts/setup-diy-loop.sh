@@ -197,6 +197,8 @@ else
   COMPLETION_PROMISE_YAML="null"
 fi
 
+# Right now goes straight to ralph-loop based implementation without running run_tests.py 
+# later to integrate with recursive_decomposition.md, THEN run ralph-loop to grind on a dependency and test it until all tests pass
 cat > .claude/ralph-loop.local.md <<EOF
 ---
 active: true
