@@ -9,6 +9,8 @@ set -euo pipefail
 PROMPT_PARTS=()
 MAX_ITERATIONS=0
 COMPLETION_PROMISE="null"
+REPO_URL=""
+PACKAGE_NAME=""
 
 # Parse options and positional arguments
 while [[ $# -gt 0 ]]; do
@@ -84,6 +86,22 @@ HELP_EOF
       MAX_ITERATIONS="$2"
       shift 2
       ;;
+    --url)
+      if [[ -z "${2:-}" ]]; then
+        echo "❌ Error: --url requires a GitHub repo URL" >&2
+        exit 1
+      fi
+      REPO_URL="$2"
+      shift 2
+      ;;
+    --package)
+      if [[ -z "${2:-}" ]]; then
+        echo "❌ Error: --package requires a package name" >&2
+        exit 1
+      fi
+      PACKAGE_NAME="$2"
+      shift 2
+      ;;
     --completion-promise)
       if [[ -z "${2:-}" ]]; then
         echo "❌ Error: --completion-promise requires a text argument" >&2
@@ -127,6 +145,82 @@ if [[ -z "$PROMPT" ]]; then
   exit 1
 fi
 
+# If --url provided, scaffold the target repo and run prepare.py
+if [[ -n "$REPO_URL" ]]; then
+  PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cd "$(dirname "$0")/.." && pwd)}"
+  LOCAL_PLUGIN_DIR=".claude/plugins/slash-diy"
+
+  # Derive package name from URL if not explicitly provided
+  if [[ -z "$PACKAGE_NAME" ]]; then
+    PACKAGE_NAME="$(basename "$REPO_URL" .git)"
+    PACKAGE_NAME="${PACKAGE_NAME%/}"
+  fi
+
+  echo ""
+  echo "━━━ Step 1/5: Copying plugin files ━━━"
+  mkdir -p "$LOCAL_PLUGIN_DIR"
+  for f in prepare.py run_tests.py rewrite_imports.py library.py program.md pyproject.toml; do
+    cp "$PLUGIN_ROOT/$f" "$LOCAL_PLUGIN_DIR/"
+    echo "  → $LOCAL_PLUGIN_DIR/$f"
+  done
+
+  echo ""
+  echo "━━━ Step 2/5: Scaffolding project root ━━━"
+  if [[ ! -f "pyproject.toml" ]]; then
+    cp "$LOCAL_PLUGIN_DIR/pyproject.toml" .
+    echo "  → ./pyproject.toml (created)"
+  else
+    echo "  → ./pyproject.toml (already exists, skipped)"
+  fi
+  # Create diy_<package>/ as a Python package so submodule imports work
+  DIY_PKG="diy_${PACKAGE_NAME//-/_}"
+  if [[ ! -d "$DIY_PKG" ]]; then
+    mkdir -p "$DIY_PKG/tests/generated" "$DIY_PKG/tests/discovered"
+    cp "$LOCAL_PLUGIN_DIR/library.py" "$DIY_PKG/__init__.py"
+    echo "  → ./$DIY_PKG/__init__.py (created as package)"
+    echo "  → ./$DIY_PKG/tests/{generated,discovered}/ (created)"
+  else
+    echo "  → ./$DIY_PKG/ (already exists, skipped)"
+  fi
+
+  echo ""
+  echo "━━━ Step 3/5: Cloning repo & copying reference to .slash_diy/ ━━━"
+  echo "  URL: $REPO_URL"
+  uv run "$LOCAL_PLUGIN_DIR/prepare.py" --url "$REPO_URL"
+  if [[ $? -ne 0 ]]; then
+    echo "❌ prepare.py failed" >&2
+    exit 1
+  fi
+
+  echo ""
+  echo "━━━ Step 4/5: Installing real library for test validation ━━━"
+  echo "  Package: $PACKAGE_NAME"
+  uv pip install "$PACKAGE_NAME"
+  if [[ $? -ne 0 ]]; then
+    echo "❌ Failed to install $PACKAGE_NAME" >&2
+    exit 1
+  fi
+  echo "  ✓ Installed $PACKAGE_NAME"
+
+  echo ""
+  echo "━━━ Step 5/5: Configuring loop ━━━"
+
+  # Default completion promise when using --url
+  if [[ "$COMPLETION_PROMISE" == "null" ]]; then
+    COMPLETION_PROMISE="ALL TESTS PASSING"
+    echo "  Completion promise defaulted to: $COMPLETION_PROMISE"
+  fi
+
+  # Compose the full prompt: user's task + program.md reference
+  PROMPT="Follow the instructions in .claude/plugins/slash-diy/program.md.
+
+Task: $PROMPT
+Repository: $REPO_URL
+Package: $PACKAGE_NAME"
+  echo "  Prompt composed with program.md reference"
+  echo ""
+fi
+
 # Create state file for stop hook (markdown with YAML frontmatter)
 mkdir -p .claude
 
@@ -137,6 +231,8 @@ else
   COMPLETION_PROMISE_YAML="null"
 fi
 
+# Right now goes straight to ralph-loop based implementation without running run_tests.py 
+# later to integrate with recursive_decomposition.md, THEN run ralph-loop to grind on a dependency and test it until all tests pass
 cat > .claude/ralph-loop.local.md <<EOF
 ---
 active: true
