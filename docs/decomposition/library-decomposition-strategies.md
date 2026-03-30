@@ -1,4 +1,4 @@
-# Library Taxonomy
+# Library Decomposition Strategies
 
 **Purpose:** Understand how different kinds of libraries decompose, and identify the next layer down for each category.
 

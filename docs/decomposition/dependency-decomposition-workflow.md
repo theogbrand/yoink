@@ -22,7 +22,7 @@ Only later, if needed, decompose those SDKs further. This ensures:
 **Input:** A single dependency to evaluate.
 
 **Tool does:**
-- Consult `decomposition-evaluation-policy.md` (or your project's equivalent evaluation policy)
+- Consult [decomposition-evaluation-policy.md](decomposition-evaluation-policy.md) (or your project's equivalent evaluation policy)
 - Assess the dependency using both the library's characteristics and its usage patterns in
   your codebase
 - Apply the evaluation framework to decide: Keep or Decompose?
@@ -54,7 +54,7 @@ Proceed to step 2.
 ## Step 2: Classify the dependency
 
 **Tool does:**
-- Consult `library-decomposition-strategies.md` to classify the dependency (API wrapper,
+- Consult [library-decomposition-strategies.md](library-decomposition-strategies.md) to classify the dependency (API wrapper,
   orchestration layer, utility, or framework)
 - For the identified category, determine:
   - **How to decompose it** (drop to raw HTTP, swap underlying SDK, inline functions, etc.)

@@ -9,96 +9,81 @@ Detects cross-references between docs and reports cyclic dependencies.
 Run with: uv run scripts/analyze-docs.py docs
 """
 
-import os
 import re
 import sys
-from pathlib import Path
 from collections import defaultdict
+from graphlib import CycleError, TopologicalSorter
+from pathlib import Path
 
 
-def find_markdown_files(root_dir: str) -> dict[str, str]:
+def find_markdown_files(root_dir: Path) -> dict[str, Path]:
     """Find all markdown files and map relative paths to absolute paths."""
     files = {}
-    for root, dirs, filenames in os.walk(root_dir):
-        for filename in filenames:
-            if filename.endswith('.md') and filename != 'STRUCTURE.md':
-                abs_path = os.path.join(root, filename)
-                rel_path = os.path.relpath(abs_path, root_dir)
-                files[rel_path] = abs_path
+    for abs_path in root_dir.rglob("*.md"):
+        if abs_path.name == "STRUCTURE.md":
+            continue
+        rel_path = str(abs_path.relative_to(root_dir))
+        files[rel_path] = abs_path
     return files
 
 
-def extract_references(content: str, available_files: dict[str, str]) -> set[str]:
+def extract_references(content: str, available_files: dict[str, Path]) -> set[str]:
     """Extract markdown file references from content."""
     references = set()
 
+    def resolve_reference(ref: str) -> str | None:
+        """Resolve a .md reference to an available file key, or None."""
+        if ref in available_files:
+            return ref
+        for available in available_files:
+            if available.endswith(ref) or ref.endswith(available):
+                return available
+        return None
+
     # Pattern 1: Markdown links [text](path.md)
-    markdown_links = re.findall(r'\[.*?\]\((.*?\.md)\)', content)
+    markdown_links = re.findall(r"\[.*?\]\((.*?\.md)\)", content)
     for link in markdown_links:
-        if link in available_files:
-            references.add(link)
+        resolved = resolve_reference(link)
+        if resolved:
+            references.add(resolved)
 
     # Pattern 2: Code fence references `filename.md`
-    code_refs = re.findall(r'`([^`]*\.md)`', content)
+    code_refs = re.findall(r"`([^`]*\.md)`", content)
     for ref in code_refs:
-        # Try to find the file in available files
-        for available in available_files.keys():
-            if available.endswith(ref) or ref.endswith(available):
-                references.add(available)
-                break
+        resolved = resolve_reference(ref)
+        if resolved:
+            references.add(resolved)
 
     return references
 
 
-def detect_cycles(graph: dict[str, set[str]], start: str, visited: set[str], rec_stack: set[str]) -> list[str]:
-    """Detect cycles using DFS. Returns the cycle path if found."""
-    visited.add(start)
-    rec_stack.add(start)
-
-    for neighbor in graph.get(start, set()):
-        if neighbor not in visited:
-            cycle = detect_cycles(graph, neighbor, visited, rec_stack)
-            if cycle:
-                return cycle
-        elif neighbor in rec_stack:
-            return [neighbor, start]
-
-    rec_stack.remove(start)
-    return []
+def find_cycles(graph: dict[str, set[str]]) -> list[list[str]]:
+    """Find cyclic dependencies using graphlib.TopologicalSorter."""
+    sorter = TopologicalSorter(graph)
+    try:
+        # static_order() raises CycleError if cycles exist
+        list(sorter.static_order())
+        return []
+    except CycleError as e:
+        # CycleError.args[1] contains the cycle as a tuple
+        cycle = list(e.args[1])
+        return [cycle]
 
 
-def find_all_cycles(graph: dict[str, set[str]]) -> list[list[str]]:
-    """Find all cyclic dependencies in the graph."""
-    visited = set()
-    cycles = []
-
-    for node in graph:
-        if node not in visited:
-            cycle = detect_cycles(graph, node, visited, set())
-            if cycle:
-                cycles.append(cycle)
-
-    return cycles
-
-
-def build_tree(graph: dict[str, set[str]], all_files: dict[str, str]) -> str:
+def build_tree(graph: dict[str, set[str]], all_files: dict[str, Path]) -> str:
     """Build a tree showing folders with files and their dependencies nested."""
-    output = []
-    displayed_files = set()
+    output: list[str] = []
+    displayed_files: set[str] = set()
 
     # Group files by directory
-    dir_structure = defaultdict(list)
+    dir_structure: dict[str, list[tuple[str, str]]] = defaultdict(list)
     for file_path in sorted(all_files.keys()):
-        if '/' in file_path:
-            directory = file_path.rsplit('/', 1)[0]
-            filename = file_path.rsplit('/', 1)[1]
-        else:
-            directory = '.'
-            filename = file_path
-        dir_structure[directory].append((filename, file_path))
+        path = Path(file_path)
+        directory = str(path.parent) if path.parent != Path(".") else "."
+        dir_structure[directory].append((path.name, file_path))
 
     # Find files that are never referenced (root files)
-    all_referenced = set()
+    all_referenced: set[str] = set()
     for refs in graph.values():
         all_referenced.update(refs)
 
@@ -107,7 +92,7 @@ def build_tree(graph: dict[str, set[str]], all_files: dict[str, str]) -> str:
         is_last_dir = i == len(dir_structure) - 1
         dir_prefix = "└── " if is_last_dir else "├── "
 
-        if directory != '.':
+        if directory != ".":
             output.append(f"{dir_prefix}{directory}/")
             extension = "    " if is_last_dir else "│   "
         else:
@@ -120,7 +105,7 @@ def build_tree(graph: dict[str, set[str]], all_files: dict[str, str]) -> str:
             if file_path in displayed_files:
                 return
 
-            filename = file_path.rsplit('/', 1)[1] if '/' in file_path else file_path
+            filename = Path(file_path).name
             file_prefix = "└── " if is_last else "├── "
             output.append(f"{prefix}{file_prefix}{filename}")
             displayed_files.add(file_path)
@@ -144,16 +129,15 @@ def build_tree(graph: dict[str, set[str]], all_files: dict[str, str]) -> str:
 
 def main():
     if len(sys.argv) < 2:
-        docs_dir = "docs"
+        docs_dir = Path("docs")
     else:
-        docs_dir = sys.argv[1]
+        docs_dir = Path(sys.argv[1])
 
-    if not os.path.isdir(docs_dir):
+    if not docs_dir.is_dir():
         print(f"Error: Directory '{docs_dir}' not found")
         sys.exit(1)
 
-    # Output file for the report
-    output_file = os.path.join(docs_dir, "STRUCTURE.md")
+    output_file = docs_dir / "STRUCTURE.md"
 
     # Find all markdown files
     files = find_markdown_files(docs_dir)
@@ -162,68 +146,60 @@ def main():
         sys.exit(1)
 
     # Build dependency graph
-    graph = defaultdict(set)
+    graph: dict[str, set[str]] = defaultdict(set)
     for file_path, abs_path in files.items():
-        with open(abs_path, 'r', encoding='utf-8') as f:
-            content = f.read()
+        content = abs_path.read_text(encoding="utf-8")
         refs = extract_references(content, files)
         graph[file_path] = refs
 
     # Check for cycles
-    cycles = find_all_cycles(dict(graph))
+    cycles = find_cycles(dict(graph))
 
     # Find root files (files with no incoming references)
-    all_referenced = set()
+    all_referenced: set[str] = set()
     for refs in graph.values():
         all_referenced.update(refs)
 
     root_files = [f for f in files.keys() if f not in all_referenced]
     if not root_files:
-        # If all files reference something, just pick files with minimal incoming references
         root_files = sorted(files.keys())[:1]
 
     # Build output
     output_lines = []
 
-    # Title
     output_lines.append("# Documentation Structure\n")
     output_lines.append("Auto-generated documentation map.\n")
 
-    # Cycles section
     if cycles:
         output_lines.append("## ⚠️ Cyclic Dependencies\n")
         for cycle in cycles:
             output_lines.append(f"- {' → '.join(cycle)}\n")
-        output_lines.append()
+        output_lines.append("\n")
 
-    # Dependency tree
     output_lines.append("## 📁 File Structure & Dependencies\n")
     output_lines.append("```\n")
     tree = build_tree(dict(graph), files)
     output_lines.append(tree + "\n")
     output_lines.append("```\n")
 
-    # Summary section
-    output_lines.append(f"\n## 📊 Summary\n")
+    output_lines.append("\n## 📊 Summary\n")
     output_lines.append(f"- Total files: {len(files)}\n")
     output_lines.append(f"- Root documents: {len(root_files)}\n")
-    output_lines.append(f"- Total references: {sum(len(refs) for refs in graph.values())}\n")
+    output_lines.append(
+        f"- Total references: {sum(len(refs) for refs in graph.values())}\n"
+    )
 
     if cycles:
         output_lines.append(f"- ⚠️ Cyclic dependencies: {len(cycles)}\n")
     else:
-        output_lines.append(f"- ✓ No cyclic dependencies\n")
+        output_lines.append("- ✓ No cyclic dependencies\n")
 
-    # Write to file
     output_text = "".join(output_lines)
-    with open(output_file, 'w', encoding='utf-8') as f:
-        f.write(output_text)
+    output_file.write_text(output_text, encoding="utf-8")
 
-    # Print to stdout
     print(output_text)
     print(f"📝 Report written to: {output_file}\n")
 
-    # Exit with error if cycles found
     if cycles:
         sys.exit(1)
 

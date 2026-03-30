@@ -100,8 +100,11 @@ def _parse_requires(requires_list: list[str]) -> list[str]:
     """
     packages = []
     for req in requires_list:
-        # Strip extras markers ('; ...')
+        # Skip extras-only dependencies (test, dev, etc.)
         if ";" in req:
+            marker = req.split(";")[1].strip().lower()
+            if "extra" in marker:
+                continue
             req = req.split(";")[0]
         # Strip version specifiers like >=, <, ==, !=, ~=, etc.
         # Match the package name: everything before the first version operator
@@ -161,7 +164,7 @@ def dequeue() -> None:
 
     if not queue["pending"]:
         print("Queue empty. Decomposition complete.")
-        return
+        sys.exit(1)
 
     # Pop first item
     next_lib = queue["pending"].pop(0)
@@ -171,7 +174,9 @@ def dequeue() -> None:
     print(f"Queue: {len(queue['pending'])} remaining\n")
     print("Evaluate using docs/decomposition/decomposition-orchestrator.md")
     print("Then run:\n")
-    print(f"  python scripts/decomp.py enqueue {next_lib}   # if decomposed (discovers subdeps)")
+    print(
+        f"  python scripts/decomp.py enqueue {next_lib}   # if decomposed (discovers subdeps)"
+    )
     print("  python scripts/decomp.py dequeue             # if kept (get next lib)\n")
 
 
