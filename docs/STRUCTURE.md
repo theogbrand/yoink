@@ -3,13 +3,14 @@ Auto-generated documentation map.
 ## 📁 File Structure & Dependencies
 ```
 └── decomposition/
-    ├── dependency-decomposition-workflow.md
-    │   ├── decomposition-evaluation-policy.md
-    │   └── library-decomposition-strategies.md
+    └── decomposition-orchestrator.md
+        └── dependency-decomposition-workflow.md
+            ├── decomposition-evaluation-policy.md
+            └── library-decomposition-strategies.md
 ```
 
 ## 📊 Summary
-- Total files: 3
+- Total files: 4
 - Root documents: 1
-- Total references: 2
+- Total references: 3
 - ✓ No cyclic dependencies

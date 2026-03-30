@@ -84,6 +84,7 @@ def find_all_cycles(graph: dict[str, set[str]]) -> list[list[str]]:
 def build_tree(graph: dict[str, set[str]], all_files: dict[str, str]) -> str:
     """Build a tree showing folders with files and their dependencies nested."""
     output = []
+    displayed_files = set()
 
     # Group files by directory
     dir_structure = defaultdict(list)
@@ -96,17 +97,14 @@ def build_tree(graph: dict[str, set[str]], all_files: dict[str, str]) -> str:
             filename = file_path
         dir_structure[directory].append((filename, file_path))
 
-    # Sort directories
-    sorted_dirs = sorted(dir_structure.keys())
-
-    # Track which files are referenced (to avoid duplication)
-    all_referenced_files = set()
+    # Find files that are never referenced (root files)
+    all_referenced = set()
     for refs in graph.values():
-        all_referenced_files.update(refs)
+        all_referenced.update(refs)
 
-    # Display directory tree with dependencies nested
-    for i, directory in enumerate(sorted_dirs):
-        is_last_dir = i == len(sorted_dirs) - 1
+    # For each directory
+    for i, directory in enumerate(sorted(dir_structure.keys())):
+        is_last_dir = i == len(dir_structure) - 1
         dir_prefix = "└── " if is_last_dir else "├── "
 
         if directory != '.':
@@ -117,40 +115,29 @@ def build_tree(graph: dict[str, set[str]], all_files: dict[str, str]) -> str:
 
         files = dir_structure[directory]
 
-        # Separate files that have dependencies and files that don't
-        files_with_deps = [(f, p) for f, p in files if graph.get(p, set())]
-        files_without_deps = [(f, p) for f, p in files if not graph.get(p, set())]
+        # Helper to add file and its dependencies recursively
+        def add_file_tree(file_path: str, prefix: str, is_last: bool):
+            if file_path in displayed_files:
+                return
 
-        # Collect all referenced files in this directory
-        referenced_in_dir = set()
-        for _, full_path in files_with_deps:
-            refs = graph.get(full_path, set())
-            for ref in refs:
-                if '/' in ref and ref.rsplit('/', 1)[0] == directory:
-                    referenced_in_dir.add(ref.rsplit('/', 1)[1])
-
-        # Show files with dependencies first
-        for j, (filename, full_path) in enumerate(files_with_deps):
-            is_last = j == len(files_with_deps) - 1 and not files_without_deps
+            filename = file_path.rsplit('/', 1)[1] if '/' in file_path else file_path
             file_prefix = "└── " if is_last else "├── "
-            output.append(f"{extension}{file_prefix}{filename}")
+            output.append(f"{prefix}{file_prefix}{filename}")
+            displayed_files.add(file_path)
 
-            # Show dependencies nested under the file
-            refs = sorted(graph.get(full_path, set()))
-            for k, ref in enumerate(refs):
-                is_last_ref = k == len(refs) - 1
-                ref_prefix = "└── " if is_last_ref else "├── "
-                ref_name = ref.rsplit('/', 1)[1] if '/' in ref else ref
+            # Add dependencies
+            refs = sorted(graph.get(file_path, set()))
+            if refs:
+                next_prefix = prefix + ("    " if is_last else "│   ")
+                for j, ref in enumerate(refs):
+                    is_last_ref = j == len(refs) - 1
+                    add_file_tree(ref, next_prefix, is_last_ref)
 
-                ref_extension = "    " if is_last else "│   "
-                output.append(f"{extension}{ref_extension}{ref_prefix}{ref_name}")
-
-        # Show standalone files (not referenced and not dependencies)
-        standalone = [(f, p) for f, p in files_without_deps if f not in referenced_in_dir]
-        for j, (filename, full_path) in enumerate(standalone):
-            is_last_file = j == len(standalone) - 1
-            file_prefix = "└── " if is_last_file else "├── "
-            output.append(f"{extension}{file_prefix}{filename}")
+        # Show only root files (not referenced by others) in this directory
+        root_files = [(f, p) for f, p in files if p not in all_referenced]
+        for j, (filename, full_path) in enumerate(root_files):
+            is_last = j == len(root_files) - 1
+            add_file_tree(full_path, extension, is_last)
 
     return "\n".join(output)
 
