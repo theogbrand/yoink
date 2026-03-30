@@ -10,6 +10,7 @@ PROMPT_PARTS=()
 MAX_ITERATIONS=0
 COMPLETION_PROMISE="null"
 REPO_URL=""
+PACKAGE_NAME=""
 
 # Parse options and positional arguments
 while [[ $# -gt 0 ]]; do
@@ -93,6 +94,14 @@ HELP_EOF
       REPO_URL="$2"
       shift 2
       ;;
+    --package)
+      if [[ -z "${2:-}" ]]; then
+        echo "❌ Error: --package requires a package name" >&2
+        exit 1
+      fi
+      PACKAGE_NAME="$2"
+      shift 2
+      ;;
     --completion-promise)
       if [[ -z "${2:-}" ]]; then
         echo "❌ Error: --completion-promise requires a text argument" >&2
@@ -141,16 +150,22 @@ if [[ -n "$REPO_URL" ]]; then
   PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cd "$(dirname "$0")/.." && pwd)}"
   LOCAL_PLUGIN_DIR=".claude/plugins/slash-diy"
 
+  # Derive package name from URL if not explicitly provided
+  if [[ -z "$PACKAGE_NAME" ]]; then
+    PACKAGE_NAME="$(basename "$REPO_URL" .git)"
+    PACKAGE_NAME="${PACKAGE_NAME%/}"
+  fi
+
   echo ""
-  echo "━━━ Step 1/4: Copying plugin files ━━━"
+  echo "━━━ Step 1/5: Copying plugin files ━━━"
   mkdir -p "$LOCAL_PLUGIN_DIR"
-  for f in prepare.py run_tests.py library.py program.md pyproject.toml; do
+  for f in prepare.py run_tests.py rewrite_imports.py library.py program.md pyproject.toml; do
     cp "$PLUGIN_ROOT/$f" "$LOCAL_PLUGIN_DIR/"
     echo "  → $LOCAL_PLUGIN_DIR/$f"
   done
 
   echo ""
-  echo "━━━ Step 2/4: Scaffolding project root ━━━"
+  echo "━━━ Step 2/5: Scaffolding project root ━━━"
   for f in library.py pyproject.toml; do
     if [[ ! -f "$f" ]]; then
       cp "$LOCAL_PLUGIN_DIR/$f" .
@@ -161,7 +176,7 @@ if [[ -n "$REPO_URL" ]]; then
   done
 
   echo ""
-  echo "━━━ Step 3/4: Cloning repo & extracting tests ━━━"
+  echo "━━━ Step 3/5: Cloning repo & copying reference ━━━"
   echo "  URL: $REPO_URL"
   uv run "$LOCAL_PLUGIN_DIR/prepare.py" --url "$REPO_URL"
   if [[ $? -ne 0 ]]; then
@@ -170,7 +185,17 @@ if [[ -n "$REPO_URL" ]]; then
   fi
 
   echo ""
-  echo "━━━ Step 4/4: Configuring loop ━━━"
+  echo "━━━ Step 4/5: Installing real library for test validation ━━━"
+  echo "  Package: $PACKAGE_NAME"
+  uv pip install "$PACKAGE_NAME"
+  if [[ $? -ne 0 ]]; then
+    echo "❌ Failed to install $PACKAGE_NAME" >&2
+    exit 1
+  fi
+  echo "  ✓ Installed $PACKAGE_NAME"
+
+  echo ""
+  echo "━━━ Step 5/5: Configuring loop ━━━"
 
   # Default completion promise when using --url
   if [[ "$COMPLETION_PROMISE" == "null" ]]; then
@@ -182,7 +207,8 @@ if [[ -n "$REPO_URL" ]]; then
   PROMPT="Follow the instructions in .claude/plugins/slash-diy/program.md.
 
 Task: $PROMPT
-Repository: $REPO_URL"
+Repository: $REPO_URL
+Package: $PACKAGE_NAME"
   echo "  Prompt composed with program.md reference"
   echo ""
 fi
