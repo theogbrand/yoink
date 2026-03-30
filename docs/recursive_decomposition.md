@@ -13,9 +13,10 @@ decompose dependencies recursively from highest to lowest level:
    and behavior, not implementation details. These tests define what "correct"
    means and survive all future decomposition.
 
-3. **Evaluate whether to decompose further.** If the dependency is too heavy,
-   pulls in too much, or you only need a slice of it — go to step 4. If not,
-   stop here.
+3. **Evaluate whether to decompose further.** Consult `secure_py_deps.md` (or your
+   project's equivalent evaluation policy) to assess the dependency. If it
+   matches a "replace by default" category or fails the evaluation framework,
+   go to step 4. If not, stop here.
 
 4. **Replace with the next layer down.** Swap in a narrower dependency, inline
    specific functionality, or drop to a lower-level library. Use the previous
@@ -58,19 +59,6 @@ fall into distinct categories, and each category decomposes differently:
 The category determines both where to look when reimplementing (API docs vs.
 source code vs. test suites) and what your contract tests should assert on (wire
 format vs. transformed outputs vs. logical edge cases).
-
-## Stop at primitives
-
-The recursion bottoms out at foundational libraries that are battle-tested,
-stable, and not worth reimplementing unless you have a strong, specific reason
-(binary size, platform constraints, zero-dep requirement):
-
-- **Python:** httpx, pydantic, click, pathlib, asyncio
-- **TypeScript:** zod, fetch/undici, commander, path
-- **Rust:** serde, tokio, reqwest, clap
-
-Reimplementing these costs more than it saves and introduces bugs the originals
-solved years ago.
 
 ## Testing across layers
 
