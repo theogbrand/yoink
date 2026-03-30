@@ -8,7 +8,6 @@ Queue state lives in .claude/decomp-queue.json.
 Usage:
   python scripts/decomp.py enqueue <library>    Discover deps, add to queue
   python scripts/decomp.py dequeue              Pop next lib, print instructions
-  python scripts/decomp.py skip <library>       Mark lib as kept, remove from queue
   python scripts/decomp.py status               Print queue state
 """
 
@@ -171,24 +170,9 @@ def dequeue() -> None:
     print(f"\nNEXT: {next_lib}\n")
     print(f"Queue: {len(queue['pending'])} remaining\n")
     print("Evaluate using docs/decomposition/decomposition-orchestrator.md")
-    print("Then run one of:\n")
-    print(f"  python scripts/decomp.py enqueue {next_lib}   # if decomposed")
-    print(f"  python scripts/decomp.py skip {next_lib}      # if kept\n")
-
-
-def skip(library: str) -> None:
-    """Remove library from queue (marked as kept)."""
-    queue = read_queue()
-
-    if library in queue["pending"]:
-        queue["pending"].remove(library)
-        write_queue(queue)
-    else:
-        # Library was already dequeued, which is fine.
-        pass
-
-    print(f"Confirmed {library} as kept")
-    print(f"Queue: {len(queue['pending'])} pending")
+    print("Then run:\n")
+    print(f"  python scripts/decomp.py enqueue {next_lib}   # if decomposed (discovers subdeps)")
+    print("  python scripts/decomp.py dequeue             # if kept (get next lib)\n")
 
 
 def status() -> None:
@@ -211,7 +195,6 @@ def main() -> None:
 Examples:
   python scripts/decomp.py enqueue requests
   python scripts/decomp.py dequeue
-  python scripts/decomp.py skip urllib3
   python scripts/decomp.py status
         """,
     )
@@ -227,10 +210,6 @@ Examples:
     # dequeue subcommand
     subparsers.add_parser("dequeue", help="Pop next library from queue")
 
-    # skip subcommand
-    skip_parser = subparsers.add_parser("skip", help="Mark library as kept")
-    skip_parser.add_argument("library", help="Library name")
-
     # status subcommand
     subparsers.add_parser("status", help="Print queue state")
 
@@ -240,8 +219,6 @@ Examples:
         enqueue(args.library)
     elif args.command == "dequeue":
         dequeue()
-    elif args.command == "skip":
-        skip(args.library)
     elif args.command == "status":
         status()
     else:
