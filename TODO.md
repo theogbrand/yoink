@@ -16,3 +16,4 @@ Beyond writing a naive AI-written test and running the original SDK with the use
     - go search original library for relevant tests, if not write an AI test, or give user ability to write their acceptance criteria
 
 - we should rewrite non-pytest tests to standardize to PyTest, otherwise handle how to handle non PyTest TBD
+- we should record down the history of all the reasoning, input, and outputs between all the steps in the workflow, so that we can read what the agent decided to do at every step. 
