@@ -191,8 +191,6 @@ def main():
 
     if cycles:
         output_lines.append(f"- ⚠️ Cyclic dependencies: {len(cycles)}\n")
-    else:
-        output_lines.append("- ✓ No cyclic dependencies\n")
 
     output_text = "".join(output_lines)
     output_file.write_text(output_text, encoding="utf-8")

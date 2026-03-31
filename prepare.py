@@ -14,10 +14,42 @@ CLONE_DIR = Path(".clone")
 REFERENCE_DIR = Path(".slash_diy/reference")
 
 
-def clone_repo(url: str) -> Path:
+def clone_repo(url: str, package_name: str) -> Path:
+    """Clone repo fetching only the package source and test directories."""
     if CLONE_DIR.exists():
         shutil.rmtree(CLONE_DIR)
-    subprocess.run(["git", "clone", "--depth", "1", url, str(CLONE_DIR)], check=True)
+    subprocess.run(
+        [
+            "git",
+            "clone",
+            "--depth",
+            "1",
+            "--filter=blob:none",
+            "--no-tags",
+            "--no-checkout",
+            url,
+            str(CLONE_DIR),
+        ],
+        check=True,
+    )
+    subprocess.run(
+        [
+            "git",
+            "-C",
+            str(CLONE_DIR),
+            "sparse-checkout",
+            "set",
+            "--no-cone",
+            f"/{package_name}/",
+            "/tests/",
+            "/test/",
+        ],
+        check=True,
+    )
+    subprocess.run(
+        ["git", "-C", str(CLONE_DIR), "checkout"],
+        check=True,
+    )
     return CLONE_DIR
 
 
@@ -46,9 +78,17 @@ def copy_raw_tests(repo_dir: Path) -> int:
         print("WARNING: No test directory found in repo")
         return 0
 
-    shutil.copytree(test_dir, ref_tests)
+    shutil.copytree(test_dir, ref_tests, copy_function=_skip_missing)
     count = len(list(ref_tests.rglob("*.py")))
     return count
+
+
+def _skip_missing(_src: str, _dst: str):
+    """shutil copy_function that silently skips files missing on disk (sparse checkout stubs)."""
+    src_path = Path(_src)
+    if not src_path.exists():
+        return
+    shutil.copy2(_src, _dst)
 
 
 def copy_reference(repo_dir: Path, package_name: str):
@@ -59,7 +99,7 @@ def copy_reference(repo_dir: Path, package_name: str):
     REFERENCE_DIR.mkdir(parents=True, exist_ok=True)
     src = repo_dir / package_name
     if src.exists():
-        shutil.copytree(src, dest)
+        shutil.copytree(src, dest, copy_function=_skip_missing)
 
 
 def main():
@@ -67,16 +107,20 @@ def main():
     parser.add_argument("--url", required=True, help="GitHub repo URL to clone")
     args = parser.parse_args()
 
-    print(f"  Cloning {args.url}...")
-    repo_dir = clone_repo(args.url)
-    print(f"  ✓ Cloned to {CLONE_DIR}/")
-
     package_name = detect_package_name(args.url)
     print(f"  Detected package: {package_name}")
 
-    print(f"  Copying reference source...")
+    print(f"  Cloning {args.url} (sparse: {package_name}/, tests/)...")
+    repo_dir = clone_repo(args.url, package_name)
+    print(f"  ✓ Cloned to {CLONE_DIR}/")
+
+    print("  Copying reference source...")
     copy_reference(repo_dir, package_name)
-    src_files = len(list((REFERENCE_DIR / package_name).rglob("*.py"))) if (REFERENCE_DIR / package_name).exists() else 0
+    src_files = (
+        len(list((REFERENCE_DIR / package_name).rglob("*.py")))
+        if (REFERENCE_DIR / package_name).exists()
+        else 0
+    )
     print(f"  ✓ {src_files} source files → {REFERENCE_DIR}/{package_name}/")
 
     print(f"  Copying raw tests to {REFERENCE_DIR}/tests/ for subagent discovery...")

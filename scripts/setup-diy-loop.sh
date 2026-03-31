@@ -145,10 +145,9 @@ if [[ -z "$PROMPT" ]]; then
   exit 1
 fi
 
-# If --url provided, scaffold the target repo and run prepare.py
+# If --url provided, run shared setup then configure loop-specific settings
 if [[ -n "$REPO_URL" ]]; then
   PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cd "$(dirname "$0")/.." && pwd)}"
-  LOCAL_PLUGIN_DIR=".claude/plugins/slash-diy"
 
   # Derive package name from URL if not explicitly provided
   if [[ -z "$PACKAGE_NAME" ]]; then
@@ -156,54 +155,19 @@ if [[ -n "$REPO_URL" ]]; then
     PACKAGE_NAME="${PACKAGE_NAME%/}"
   fi
 
-  echo ""
-  echo "━━━ Step 1/5: Copying plugin files ━━━"
-  mkdir -p "$LOCAL_PLUGIN_DIR"
-  for f in prepare.py run_tests.py rewrite_imports.py __init__.py program.md pyproject.toml; do
-    cp "$PLUGIN_ROOT/$f" "$LOCAL_PLUGIN_DIR/"
-    echo "  → $LOCAL_PLUGIN_DIR/$f"
-  done
-
-  echo ""
-  echo "━━━ Step 2/5: Scaffolding project root ━━━"
-  if [[ ! -f "pyproject.toml" ]]; then
-    cp "$LOCAL_PLUGIN_DIR/pyproject.toml" .
-    echo "  → ./pyproject.toml (created)"
-  else
-    echo "  → ./pyproject.toml (already exists, skipped)"
+  # Run shared setup (copy plugin files, scaffold, clone, install)
+  SETUP_ARGS="--url $REPO_URL"
+  if [[ -n "$PACKAGE_NAME" ]]; then
+    SETUP_ARGS="$SETUP_ARGS --package $PACKAGE_NAME"
   fi
-  # Create diy_<package>/ as a Python package so submodule imports work
-  DIY_PKG="diy_${PACKAGE_NAME//-/_}"
-  if [[ ! -d "$DIY_PKG" ]]; then
-    mkdir -p "$DIY_PKG/tests/generated" "$DIY_PKG/tests/discovered"
-    cp "$LOCAL_PLUGIN_DIR/__init__.py" "$DIY_PKG/__init__.py"
-    echo "  → ./$DIY_PKG/__init__.py (created as package)"
-    echo "  → ./$DIY_PKG/tests/{generated,discovered}/ (created)"
-  else
-    echo "  → ./$DIY_PKG/ (already exists, skipped)"
-  fi
-
-  echo ""
-  echo "━━━ Step 3/5: Cloning repo & copying reference to .slash_diy/ ━━━"
-  echo "  URL: $REPO_URL"
-  uv run "$LOCAL_PLUGIN_DIR/prepare.py" --url "$REPO_URL"
+  "$PLUGIN_ROOT/scripts/setup.sh" $SETUP_ARGS
   if [[ $? -ne 0 ]]; then
-    echo "❌ prepare.py failed" >&2
+    echo "❌ Setup failed" >&2
     exit 1
   fi
 
   echo ""
-  echo "━━━ Step 4/5: Installing real library for test validation ━━━"
-  echo "  Package: $PACKAGE_NAME"
-  uv pip install "$PACKAGE_NAME"
-  if [[ $? -ne 0 ]]; then
-    echo "❌ Failed to install $PACKAGE_NAME" >&2
-    exit 1
-  fi
-  echo "  ✓ Installed $PACKAGE_NAME"
-
-  echo ""
-  echo "━━━ Step 5/5: Configuring loop ━━━"
+  echo "━━━ Configuring loop ━━━"
 
   # Default completion promise when using --url
   if [[ "$COMPLETION_PROMISE" == "null" ]]; then

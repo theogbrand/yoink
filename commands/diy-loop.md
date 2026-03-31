@@ -1,7 +1,7 @@
 ---
 description: "Start Ralph Wiggum loop in current session"
 argument-hint: "PROMPT [--url GITHUB_URL] [--max-iterations N] [--completion-promise TEXT]"
-allowed-tools: ["Bash(${CLAUDE_PLUGIN_ROOT}/scripts/setup-diy-loop.sh:*)"]
+allowed-tools: ["Bash(${CLAUDE_PLUGIN_ROOT}/scripts/setup-diy-loop.sh:*)", "Bash(${CLAUDE_PLUGIN_ROOT}/scripts/setup.sh:*)"]
 hide-from-slash-command-tool: "true"
 ---
 
