@@ -159,7 +159,7 @@ if [[ -n "$REPO_URL" ]]; then
   echo ""
   echo "━━━ Step 1/5: Copying plugin files ━━━"
   mkdir -p "$LOCAL_PLUGIN_DIR"
-  for f in prepare.py run_tests.py rewrite_imports.py library.py program.md pyproject.toml; do
+  for f in prepare.py run_tests.py rewrite_imports.py __init__.py program.md pyproject.toml; do
     cp "$PLUGIN_ROOT/$f" "$LOCAL_PLUGIN_DIR/"
     echo "  → $LOCAL_PLUGIN_DIR/$f"
   done
@@ -176,7 +176,7 @@ if [[ -n "$REPO_URL" ]]; then
   DIY_PKG="diy_${PACKAGE_NAME//-/_}"
   if [[ ! -d "$DIY_PKG" ]]; then
     mkdir -p "$DIY_PKG/tests/generated" "$DIY_PKG/tests/discovered"
-    cp "$LOCAL_PLUGIN_DIR/library.py" "$DIY_PKG/__init__.py"
+    cp "$LOCAL_PLUGIN_DIR/__init__.py" "$DIY_PKG/__init__.py"
     echo "  → ./$DIY_PKG/__init__.py (created as package)"
     echo "  → ./$DIY_PKG/tests/{generated,discovered}/ (created)"
   else
