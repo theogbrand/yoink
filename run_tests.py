@@ -15,7 +15,7 @@ from pathlib import Path
 
 
 def find_test_dir():
-    for d in sorted(Path(".").glob("diy_*/tests")):
+    for d in sorted(Path(".").glob("diy_*/tests/generated")):
         if d.is_dir():
             return str(d)
     return "tests"
@@ -57,7 +57,7 @@ def main():
     total = passed + failed + errors
     score = passed / total if total > 0 else 0.0
 
-    print(f"\n--- Results ---")
+    print("\n--- Results ---")
     print(f"score:          {score:.6f}")
     print(f"passed:         {passed}")
     print(f"failed:         {failed}")

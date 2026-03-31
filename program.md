@@ -18,8 +18,8 @@ You ONLY modify files within `diy_<package>/`. Everything else is fixed.
 │   ├── __init__.py                   # Main module — add submodules as needed
 │   ├── *.py                          # Create submodules to match target structure
 │   └── tests/                        # Curated test suite (created in Phase 0)
-│       ├── generated/                # Tests you write via subagent
-│       └── discovered/               # Tests found in original repo via subagent
+│       ├── generated/                # Tests written by subagent (used for validation)
+│       └── discovered/               # Tests from original repo (reference only)
 ├── pyproject.toml                    # Project deps
 ├── .slash_diy/                       # Hidden dir for reference material
 │   └── reference/                    # Read-only reference material
@@ -72,7 +72,7 @@ Refer to and follow the instructions in `docs/phase-0-test-curation.md`.
 ```
 FOREVER:
 1. Read current diy_<package>/ source files and results.tsv
-2. Study failing tests: uv run pytest diy_<package>/tests/ -x --tb=short 2>&1
+2. Study failing tests: uv run pytest diy_<package>/tests/generated/ -x --tb=short 2>&1
 3. Identify the next group of tests to fix
 4. Modify source files in diy_<package>/ to pass more tests
 5. git add diy_<package>/ && git commit -m "expN: description"
@@ -110,7 +110,7 @@ echo -e "$(git rev-parse --short HEAD)\t${score}\t${passed}\t${failed}\t${total}
 
 ## Tips
 
-- Run `uv run pytest diy_<package>/tests/ -x --tb=short` to stop at first failure — fix one thing at a time
+- Run `uv run pytest diy_<package>/tests/generated/ -x --tb=short` to stop at first failure — fix one thing at a time
 - Read the failing test carefully before looking at the reference implementation
 - Many tests share underlying functions — fixing one often fixes many
 - Keep diy_<package>/ organized: one submodule per logical area, re-export from __init__.py
