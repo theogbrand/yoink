@@ -38,7 +38,7 @@ You ONLY modify files within `diy_<package>/`. Everything else is fixed.
 
 **You MUST complete this phase before touching diy_<package>/.**
 
-Refer to and follow the instructions in `docs/phase-0-test-curation.md`.
+Use the **test-discoverer** agent to find relevant tests, then use the **test-generator** agent to write focused tests. Then validate, rewrite imports, and sanity check as described in the `/test-curate` command.
 
 ---
 

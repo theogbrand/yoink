@@ -57,25 +57,32 @@ Cancel the active loop.
 
 ## Decomp MVP
 
-### /decomp-only
+### /diy-decomp
 
 Curate tests from a target package, then decompose its dependencies into a local, dependency-free replacement. Runs in two phases: test curation (Phase 0) followed by dependency decomposition (Phase 1).
 
 **Example Usage:**
 ```bash
-/decomp-only "I want to replace the usage of litellm in @litellm-sample.md with my own implementation. make it minimal so that it only implements what we need as a replacement and not to be as robust for all other cases in the original library. although minimal it still has to be secure and verified via testing" --url "https://github.com/BerriAI/litellm"
+mkdir ../litellm-lite
+cp ./examples/litellm-sample.md ../litellm-lite/
+cd ../litellm-lite
+claude --plugin-dir ../slash-diy
+```
+
+```bash
+/diy-decomp "I want to replace the usage of litellm in @litellm-sample.md with my own implementation. make it minimal so that it only implements what we need as a replacement and not to be as robust for all other cases in the original library. although minimal it still has to be secure and verified via testing" --url "https://github.com/BerriAI/litellm"
 ```
 
 **Usage:**
 ```bash
-/decomp-only "<prompt>" --url "<github_url>" [--package "<package_name>"]
+/diy-decomp "<prompt>" --url "<github_url>" [--package "<package_name>"]
 ```
 
 **Options:**
 - `--url <github_url>` - GitHub repository URL to clone and decompose (required)
 - `--package <package_name>` - Override the package name (defaults to the repo name from the URL)
 
-The individual phases of `/decomp-only` are also available as separate commands, useful if a run fails midway and you need to resume from a specific phase:
+The individual phases of `/diy-decomp` are also available as separate commands, useful if a run fails midway and you need to resume from a specific phase:
 
 ### /setup
 

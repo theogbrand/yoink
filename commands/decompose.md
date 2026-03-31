@@ -10,7 +10,48 @@ argument-hint: "--package PACKAGE_NAME"
 Seed the decomposition queue with the target package:
 
 ```bash
-uv run python scripts/decomp.py enqueue <PACKAGE>
+uv run python ${CLAUDE_PLUGIN_ROOT}/scripts/decomp.py enqueue <PACKAGE>
 ```
 
-Then read and follow `${CLAUDE_PLUGIN_ROOT}/docs/decomposition/decomposition-orchestrator.md` until the queue is empty.
+Then run the decomposition loop below until the queue is empty.
+
+---
+
+## Decomposition Loop
+
+**Begin loop.** Repeat until the queue is empty.
+
+### 1. Dequeue
+
+```bash
+uv run python ${CLAUDE_PLUGIN_ROOT}/scripts/decomp.py dequeue
+```
+
+- **If queue is empty** -> decomposition complete, stop.
+
+### 2. Evaluate
+
+Use the **decomp-evaluator** agent to evaluate whether the dequeued library should be kept or decomposed.
+
+Pass it the library name and the diy package name (e.g., `diy_litellm`).
+
+- **Keep** -> go back to step 1.
+- **Decompose** -> continue to step 3 with the evaluation output.
+
+### 3. Implement & Validate
+
+Use the **decomp-implementer** agent to implement the replacement.
+
+Pass it the library name, the diy package name, and the full evaluation output from step 2.
+
+### 4. Enqueue new dependencies
+
+Using the "New imports" from the implementer's report, enqueue external libraries that `diy_<PACKAGE>/` now depends on:
+
+```bash
+uv run python ${CLAUDE_PLUGIN_ROOT}/scripts/decomp.py enqueue <lib1> <lib2> ...
+```
+
+Only enqueue what `diy_<PACKAGE>/` actually imports -- not the full dependency tree of the original library. Use `uv run python ${CLAUDE_PLUGIN_ROOT}/scripts/decomp.py deps <library>` to see a library's pip dependencies as reference.
+
+**Loop back to step 1.**

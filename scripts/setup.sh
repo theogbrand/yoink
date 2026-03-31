@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Decomp-Only Setup Script
+# DIY-Decomp Setup Script
 # Scaffolds the project (clone repo, install package, copy plugin files)
 # without creating a loop state file.
 
@@ -15,10 +15,10 @@ while [[ $# -gt 0 ]]; do
   case $1 in
     -h|--help)
       cat << 'HELP_EOF'
-Decomp Only - Test curation + dependency decomposition (no loop)
+DIY Decomp - Test curation + dependency decomposition (no loop)
 
 USAGE:
-  /decomp-only [PROMPT...] [OPTIONS]
+  /diy-decomp [PROMPT...] [OPTIONS]
 
 ARGUMENTS:
   PROMPT...    Task description (can be multiple words without quotes)
@@ -29,8 +29,8 @@ OPTIONS:
   -h, --help               Show this help message
 
 EXAMPLES:
-  /decomp-only Decompose litellm --url https://github.com/BerriAI/litellm
-  /decomp-only --url https://github.com/org/repo --package mypackage Evaluate deps
+  /diy-decomp Decompose litellm --url https://github.com/BerriAI/litellm
+  /diy-decomp --url https://github.com/org/repo --package mypackage Evaluate deps
 HELP_EOF
       exit 0
       ;;
@@ -63,15 +63,15 @@ if [[ -z "$PROMPT" ]]; then
   echo "❌ Error: No prompt provided" >&2
   echo "" >&2
   echo "   Examples:" >&2
-  echo "     /decomp-only Decompose litellm --url https://github.com/BerriAI/litellm" >&2
-  echo "     /decomp-only --url https://github.com/org/repo Evaluate deps" >&2
+  echo "     /diy-decomp Decompose litellm --url https://github.com/BerriAI/litellm" >&2
+  echo "     /diy-decomp --url https://github.com/org/repo Evaluate deps" >&2
   echo "" >&2
-  echo "   For all options: /decomp-only --help" >&2
+  echo "   For all options: /diy-decomp --help" >&2
   exit 1
 fi
 
 if [[ -z "$REPO_URL" ]]; then
-  echo "❌ Error: --url is required for decomp-only" >&2
+  echo "❌ Error: --url is required for diy-decomp" >&2
   exit 1
 fi
 
@@ -131,7 +131,7 @@ echo "  ✓ Installed $PACKAGE_NAME"
 
 echo ""
 cat <<EOF
-✅ Project scaffolded for decomp-only!
+✅ Project scaffolded for diy-decomp!
 
 Package: $PACKAGE_NAME
 Repository: $REPO_URL
