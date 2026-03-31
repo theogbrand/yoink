@@ -1,40 +1,32 @@
 
 ## Phase 0: Test Curation
 
+### Project layout
+
+> **Naming convention**: `diy_<package>/` where `<package>` has hyphens replaced
+> by underscores (e.g., package `litellm` → `diy_litellm/`).
+
+```
+./                                    # Target project root (your CWD)
+├── diy_<package>/                    # ONLY directory you edit
+│   ├── __init__.py
+│   └── tests/
+│       ├── generated/                # Tests written by subagent (used for validation)
+│       └── discovered/               # Tests from original repo (reference only)
+├── .slash_diy/
+│   └── reference/                    # Read-only reference material
+│       ├── <package>/                # Original source code
+│       └── tests/                    # Original test suite (raw, unmodified)
+└── .claude/plugins/slash-diy/        # Plugin tools (DO NOT MODIFY)
+```
+
+### Input
+
 Parse your prompt to identify:
 - **Package name**: from the `Package:` line in the prompt
 - **Target function/feature**: from the `Task:` line in the prompt
 
-### Step 1: Generate focused tests (Subagent A)
-
-Use the Agent tool to spawn a subagent with this task:
-
-```
-You are an experienced Test Engineer writing pytest unit tests.
-
-Target: <FUNCTION from Task line> from the <PACKAGE> library.
-
-Study the reference implementation in .slash_diy/reference/<PACKAGE>/ to understand:
-- Function signature, parameters, and return types
-- Error handling and edge cases
-- Common usage patterns
-
-Write comprehensive pytest tests to diy_<PACKAGE>/tests/generated/test_<function>.py covering:
-- Happy path with typical inputs
-- Edge cases (empty inputs, None, boundary conditions)
-- Error handling (invalid inputs, expected exceptions)
-- Common real-world usage patterns
-
-Rules:
-- Import from the REAL library: from <PACKAGE> import <function>
-- Tests MUST be self-contained — NO external API calls, NO network requests
-- Use unittest.mock to mock any external dependencies (HTTP, databases, etc.)
-- Each test must be independent and clearly named
-- Target 10-30 focused tests
-- Create diy_<PACKAGE>/tests/generated/ directory if it doesn't exist
-```
-
-### Step 2: Discover relevant tests (Subagent B)
+### Step 1: Discover relevant tests
 
 Use the Agent tool to spawn a subagent with this task:
 
@@ -59,14 +51,48 @@ Rules:
 - If no relevant tests found, that's OK — generated tests are sufficient
 ```
 
-**Launch both subagents in parallel** using the Agent tool.
+**Wait for this subagent to complete before proceeding to Step 2.**
+
+### Step 2: Generate focused tests
+
+Use the Agent tool to spawn a subagent with this task:
+
+```
+You are an experienced Test Engineer writing pytest unit tests.
+
+Target: <FUNCTION from Task line> from the <PACKAGE> library.
+
+Study the reference implementation in .slash_diy/reference/<PACKAGE>/ to understand:
+- Function signature, parameters, and return types
+- Error handling and edge cases
+- Common usage patterns
+
+If diy_<PACKAGE>/tests/discovered/ exists and contains test files, read them to understand
+testing patterns, common assertions, and real-world usage idioms from the original test suite.
+Use this as additional reference alongside the source code study to write more grounded tests.
+Do NOT copy or duplicate discovered tests — write original tests informed by them.
+
+Write comprehensive pytest tests to diy_<PACKAGE>/tests/generated/test_<function>.py covering:
+- Happy path with typical inputs
+- Edge cases (empty inputs, None, boundary conditions)
+- Error handling (invalid inputs, expected exceptions)
+- Common real-world usage patterns
+
+Rules:
+- Import from the REAL library: from <PACKAGE> import <function>
+- Tests MUST be self-contained — NO external API calls, NO network requests
+- Use unittest.mock to mock any external dependencies (HTTP, databases, etc.)
+- Each test must be independent and clearly named
+- Target 10-30 focused tests
+- Create diy_<PACKAGE>/tests/generated/ directory if it doesn't exist
+```
 
 ### Step 3: Validate tests against the real library
 
-Run the curated tests against the pip-installed real library:
+Run the generated tests against the pip-installed real library:
 
 ```bash
-uv run pytest diy_<PACKAGE>/tests/generated/ diy_<PACKAGE>/tests/discovered/ -v --tb=short 2>&1
+uv run pytest diy_<PACKAGE>/tests/generated/ -v --tb=short 2>&1
 ```
 
 **Prune failures:**
@@ -80,13 +106,12 @@ Print a summary:
 ```
 Test validation results:
   Generated: X/Y passed (removed: list of removed files)
-  Discovered: A/B passed (removed: list of removed files)
   Total surviving tests: N
 ```
 
 ### Step 4: Rewrite imports
 
-After validation passes, rewrite imports so tests target `diy_<package>/`:
+After validation passes, rewrite imports in generated tests so they target `diy_<package>/`:
 
 ```bash
 uv run .claude/plugins/slash-diy/rewrite_imports.py --package <PACKAGE>
