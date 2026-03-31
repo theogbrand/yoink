@@ -61,6 +61,7 @@ Proceed to step 2.
   - **What reference material to use** (API docs, library source)
 
 **Output:**
+- **Functions to replace** — the specific functions, classes, or features from this library that `diy_<package>/` actually uses (e.g., `openai.chat.completions.create`, `httpx.AsyncClient.post`). Inspect the current `diy_<package>/` source to identify these. This scopes the implementation work — only these need to be replaced, not the entire library.
 - **Category** of the dependency
 - **Decomposition strategy** (category-specific approach)
 - **Reference material** (where to look when implementing)
