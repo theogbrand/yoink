@@ -1,18 +1,35 @@
-Diy-loop
-* add npm/github package URL as an argument so it can kick off "test search agent" to pull in the relevant test files
-    * uses **subagents** to “study every file in tests/* using separate subagents and document in /specs/*.md and link the implementation as citations in the specification“ - which means actually it needs to write the spec first
-* Uses external evaluator agent to write tests independently (debate with planner agent just like Anthropic does it?)
-* After generation of single task/phase, run evaluator’s test and if it fails, we inject context to edit files to pass the test (without hacking)
-* Pass criteria is when all tasks and tests pass
-    * add more complex quality gates later, assume passing tests written by evaluator agent works
-* UX: maybe after the /diy-loop command, it should launch in a sandbox and notify user to merge the PR
-* spin up subagent to complete TODO item and update progress.txt or check off TODO item, send back progress to main agent with structured report defined by us
-* Agent should systematically breakdown the levels of attraction slowly without skipping too far ahead. For example, you should rely on high-level SDKs in the first step, and then in a second step, break down those SDKs into the base functionality as well.
-    * the agent should understand that different libraries are broken down in different kinds of taxonomies like SDKs that wrap APIs, SDKs that simplify UX over other SDKs, utilities like data structures and algos.
-* Clear distiinction between the tests we take from the official library and the ones we write. Some features only have compound tests, so we need to write the tests for them.
+# Diy-loop TODO
 
-Beyond writing a naive AI-written test and running the original SDK with the user specified functionality, can we do better
-    - becuase if this is not well written, the quality of everything else downstream will depend on this definition of correctness
-    - go search original library for relevant tests, if not write an AI test, or give user ability to write their acceptance criteria
+## Phase 0: Test Curation
+- [x] Add npm/github package URL as an argument so it can kick off "test search agent" to pull in the relevant test files
+- [x] Use subagents to:
+    - [x] Study every file in tests/* using separate subagents
+    - [ ] Document findings in /specs/*.md
+    - [ ] Link the implementation as citations in the specification (requires writing the spec first)
+- [ ] Use an external evaluator agent to write tests independently (debate with planner agent, similar to Anthropic approach)
 
-- we should rewrite non-pytest tests to standardize to PyTest, otherwise handle how to handle non PyTest TBD
+## Phase X: Raph Inner Loop
+- [ ] After generation of a single task/phase:
+    - [ ] Run evaluator's test
+    - [ ] If it fails, inject context to edit files to pass the test (without hacking)
+- [ ] Ensure pass criteria: all tasks and tests must pass
+    - [ ] Add more complex quality gates later (for now, assume passing evaluator agent tests is sufficient)
+- [ ] UX: After the /diy-loop command, launch in a sandbox and notify user to merge the PR
+- [ ] Spin up subagent to complete TODO item and update progress.txt or check off TODO item
+    - [ ] Send back progress to main agent with a structured report defined by us
+
+## Phase Y: Recursive Decomposition
+- [ ] Agent should systematically break down the levels of abstraction without skipping ahead:
+    - [ ] First, rely on high-level SDKs
+    - [ ] In second step, break down SDK calls to base functions
+    - [ ] Recognize taxonomies in libraries (e.g. SDKs that wrap APIs, SDKs that simplify UX, utility libraries with data structures/algorithms)
+
+## Misc
+- [ ] Clearly distinguish between tests sourced from the official library and new tests we write
+    - [ ] Identify features with only compound tests and write additional tests for them if needed
+- [ ] Go beyond naive AI-written tests:
+    - [ ] Recognize that initial correctness definition greatly affects downstream quality
+    - [ ] Search original library for relevant tests
+    - [ ] If no tests found, write AI test or enable user to define acceptance criteria
+- [ ] Rewrite non-pytest tests to standardize on PyTest
+    - [ ] Otherwise, define how to handle non-PyTest test cases (TBD)
