@@ -1,7 +1,7 @@
 ---
 description: "Curate tests then decompose dependencies"
 argument-hint: "PROMPT [--url GITHUB_URL] [--package PACKAGE_NAME]"
-allowed-tools: ["Bash(${CLAUDE_PLUGIN_ROOT}/scripts/setup-decomp-only.sh:*)"]
+allowed-tools: ["Bash(${CLAUDE_PLUGIN_ROOT}/scripts/setup.sh:*)"]
 ---
 
 # Decomp Only
@@ -9,7 +9,7 @@ allowed-tools: ["Bash(${CLAUDE_PLUGIN_ROOT}/scripts/setup-decomp-only.sh:*)"]
 Execute the setup script to scaffold the project:
 
 ```!
-"${CLAUDE_PLUGIN_ROOT}/scripts/setup-decomp-only.sh" $ARGUMENTS
+"${CLAUDE_PLUGIN_ROOT}/scripts/setup.sh" $ARGUMENTS
 ```
 
 IMPORTANT: After the setup script runs, print its full output to the user verbatim.
