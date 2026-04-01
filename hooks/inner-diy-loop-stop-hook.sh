@@ -10,7 +10,7 @@ set -euo pipefail
 HOOK_INPUT=$(cat)
 
 # Check if ralph-loop is active
-RALPH_STATE_FILE=".claude/ralph-loop.local.md"
+RALPH_STATE_FILE=".claude/inner-diy-loop.local.md"
 
 if [[ ! -f "$RALPH_STATE_FILE" ]]; then
   # No active loop - allow exit
