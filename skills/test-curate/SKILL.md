@@ -1,10 +1,21 @@
 ---
-description: "Phase 0: Generate and discover tests, validate against real library"
+name: test-curate
+description: "Phase 0: Generate and discover tests, validate against real library. Only invoke when explicitly requested by the user or by the diy-decomp orchestrator."
 argument-hint: "PROMPT --package PACKAGE_NAME"
-disable-model-invocation: true
+hooks:
+  SubagentStart:
+    - hooks:
+        - type: command
+          command: "echo \"[$(date -u +%Y-%m-%dT%H:%M:%SZ)] START $(echo $CLAUDE_HOOK_EVENT | jq -c '{tool: .tool_name, input: .tool_input}')\" >> .claude/test-curate-subagent.log"
+  SubagentStop:
+    - hooks:
+        - type: command
+          command: "echo \"[$(date -u +%Y-%m-%dT%H:%M:%SZ)] STOP  $(echo $CLAUDE_HOOK_EVENT | jq -c '{tool: .tool_name, output: .tool_output}')\" >> .claude/test-curate-subagent.log"
 ---
 
 # Test Curate
+
+> **Do not invoke this skill unless explicitly requested.** It is called by `/diy-decomp` or run standalone by the user.
 
 **Prerequisite:** `/setup` must have been run first (reference dir and real library must exist).
 
@@ -58,7 +69,7 @@ Test validation results:
 After validation passes, rewrite imports in generated tests so they target `diy_<package>/`:
 
 ```bash
-uv run ${CLAUDE_PLUGIN_ROOT}/rewrite_imports.py --package <PACKAGE>
+uv run ${CLAUDE_SKILL_DIR}/scripts/rewrite_imports.py --package <PACKAGE>
 ```
 
 ### 5. Sanity check
@@ -66,7 +77,7 @@ uv run ${CLAUDE_PLUGIN_ROOT}/rewrite_imports.py --package <PACKAGE>
 Run the test suite against the empty `diy_<package>/` to confirm tests fail:
 
 ```bash
-uv run ${CLAUDE_PLUGIN_ROOT}/run_tests.py > run.log 2>&1
+uv run ${CLAUDE_PLUGIN_ROOT}/scripts/run_tests.py > run.log 2>&1
 grep "^score:" run.log
 ```
 
