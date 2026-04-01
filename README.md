@@ -205,25 +205,65 @@ Save as `decomp_context.json`:
 }
 ```
 
-TODO:
+Example Output from Orchestrator:
 For now, Orchestrator outputs in Markdown:
-example from the openai evaluation, where decomp-queue.json has {
+
+where decomp-queue.json has {
   "pending": ["openai"]
 }:
+```markdown
+Decision: Decompose
+Reasoning: openai is a vendor SDK. The core usage is
+limited to instantiating a client and calling
+chat.completions.create(), both of which are
+straightforward to replace using httpx. The exception
+coupling adds complexity but is manageable.
+Category: API wrapper
+Strategy: Replace with raw HTTP calls using httpx:
+1. Create a lightweight client that takes api_key,
+base_url, timeout and calls {base_url}/chat/completions
+via httpx.post()
+2. Remove inheritance from openai exception classes —
+define independent exceptions
+3. Replace openai._models.BaseModel usage in
+types/utils.py with pydantic BaseModel
+4. Replace openai.types.completion_usage.* imports with
+custom equivalents
+Functions to replace:
+- openai.OpenAI() constructor
+- client.chat.completions.create() and with_raw_response
+variant
+- All openai exception base classes
+- openai._models.BaseModel (alias for OpenAIObject)
+- openai.types.completion_usage.CompletionTokensDetails,
+CompletionUsage, PromptTokensDetails
+Acceptable sub-dependencies: httpx (for HTTP calls),
+pydantic (already used)
+```
 
-**Decision:** Decompose
-**Reasoning:** The `openai` Python SDK is explicitly
-listed...
-**Category:** API wrapper / SDK binding
-**Strategy:** Replace `openai.OpenAI().chat.completio
-ns.with_raw_response.create()` with a direct HTTP
-POST using `httpx`...
-**Functions to replace:** openai.OpenAI(),
-client.chat.completions.with_raw_response.create()...
-**Reference material:** OpenAI Chat Completions API
-docs: https://platform.openai.com/docs/api-reference/
-chat/create...
-**Acceptable sub-dependencies:** httpx, pydantic
+where decomp_context.json has {
+  "pending": ["pydantic"]
+}:
+```markdown
+Decision: Decompose
+Reasoning: Pydantic is used only as simple data containers
+  with no validation. ~15 model classes use only BaseModel,
+  Field, PrivateAttr, model_dump(), and model_config. No
+validators are used.
+Category: Utility
+Strategy: Replace pydantic BaseModel with plain Python
+classes. Use __init__ for field declarations, custom
+model_dump() methods for serialization.
+Functions to replace:
+- BaseModel → plain Python classes
+- Field(default=None) → regular init parameters with
+defaults
+- PrivateAttr() → Direct assignment in __init__
+- model_dump() → custom serialization method
+- model_config with extra='allow' → __setattr__
+permissiveness or **kwargs in __init__
+Acceptable sub-dependencies: None. Standard library only.
+```
 
 ### 2. Generate the prompt
 
