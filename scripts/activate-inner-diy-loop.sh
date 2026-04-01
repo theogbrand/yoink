@@ -9,8 +9,9 @@ set -euo pipefail
 PROMPT_PARTS=()
 MAX_ITERATIONS=0
 COMPLETION_PROMISE="DONE"
-REPO_URL=""
 PACKAGE_NAME=""
+CONTEXT_FILE=""
+SUB_PACKAGE_NAME=""
 
 # Parse options and positional arguments
 while [[ $# -gt 0 ]]; do
@@ -26,6 +27,9 @@ ARGUMENTS:
   PROMPT...    Initial prompt to start the loop (can be multiple words without quotes)
 
 OPTIONS:
+  --context <file>               Decomp context file (from decomp-evaluator output)
+  --package <name>               Top-level package name (required with --context)
+  --sub-package <name>           Sub-package to build (required with --context)
   --max-iterations <n>           Maximum iterations before auto-stop (default: unlimited)
   --completion-promise '<text>'  Promise phrase (USE QUOTES for multi-word)
   -h, --help                     Show this help message
@@ -86,14 +90,6 @@ HELP_EOF
       MAX_ITERATIONS="$2"
       shift 2
       ;;
-    --url)
-      if [[ -z "${2:-}" ]]; then
-        echo "❌ Error: --url requires a GitHub repo URL" >&2
-        exit 1
-      fi
-      REPO_URL="$2"
-      shift 2
-      ;;
     --package)
       if [[ -z "${2:-}" ]]; then
         echo "❌ Error: --package requires a package name" >&2
@@ -102,21 +98,20 @@ HELP_EOF
       PACKAGE_NAME="$2"
       shift 2
       ;;
-    --completion-promise)
+    --context)
       if [[ -z "${2:-}" ]]; then
-        echo "❌ Error: --completion-promise requires a text argument" >&2
-        echo "" >&2
-        echo "   Valid examples:" >&2
-        echo "     --completion-promise 'DONE'" >&2
-        echo "     --completion-promise 'TASK COMPLETE'" >&2
-        echo "     --completion-promise 'All tests passing'" >&2
-        echo "" >&2
-        echo "   You provided: --completion-promise (with no text)" >&2
-        echo "" >&2
-        echo "   Note: Multi-word promises must be quoted!" >&2
+        echo "❌ Error: --context requires a file path" >&2
         exit 1
       fi
-      COMPLETION_PROMISE="$2"
+      CONTEXT_FILE="$2"
+      shift 2
+      ;;
+    --sub-package)
+      if [[ -z "${2:-}" ]]; then
+        echo "❌ Error: --sub-package requires a package name" >&2
+        exit 1
+      fi
+      SUB_PACKAGE_NAME="$2"
       shift 2
       ;;
     *)
@@ -128,7 +123,43 @@ HELP_EOF
 done
 
 # Join all prompt parts with spaces
-PROMPT="${PROMPT_PARTS[*]}"
+PROMPT="${PROMPT_PARTS[*]:-}"
+
+# If --context provided, generate prompt from decomp context via inner_ralph.py
+if [[ -n "$CONTEXT_FILE" ]]; then
+  PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cd "$(dirname "$0")/.." && pwd)}"
+
+  if [[ ! -f "$CONTEXT_FILE" ]]; then
+    echo "❌ Error: Context file not found: $CONTEXT_FILE" >&2
+    exit 1
+  fi
+  if [[ -z "$PACKAGE_NAME" ]] || [[ -z "$SUB_PACKAGE_NAME" ]]; then
+    echo "❌ Error: --context requires --package and --sub-package" >&2
+    exit 1
+  fi
+
+  ITER_LIMIT="$MAX_ITERATIONS"
+  if [[ "$ITER_LIMIT" -eq 0 ]]; then
+    ITER_LIMIT=30
+  fi
+
+  PROMPT=$(uv run python "$PLUGIN_ROOT/inner_ralph.py" generate-prompt \
+    --context "$CONTEXT_FILE" \
+    --top-package "$PACKAGE_NAME" \
+    --sub-package "$SUB_PACKAGE_NAME" \
+    --max-iterations "$ITER_LIMIT")
+
+  if [[ $? -ne 0 ]] || [[ -z "$PROMPT" ]]; then
+    echo "❌ Error: Failed to generate prompt from context" >&2
+    exit 1
+  fi
+  echo "━━━ Generated prompt from decomp context ━━━"
+  echo "  Top package: $PACKAGE_NAME"
+  echo "  Sub package: $SUB_PACKAGE_NAME"
+  echo "  Context file: $CONTEXT_FILE"
+  echo "  Max iterations: $ITER_LIMIT"
+  echo ""
+fi
 
 # Validate prompt is non-empty
 if [[ -z "$PROMPT" ]]; then
@@ -143,46 +174,6 @@ if [[ -z "$PROMPT" ]]; then
   echo "" >&2
   echo "   For all options: /inner-diy-loop --help" >&2
   exit 1
-fi
-
-# If --url provided, run shared setup then configure loop-specific settings
-if [[ -n "$REPO_URL" ]]; then
-  PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cd "$(dirname "$0")/.." && pwd)}"
-
-  # Derive package name from URL if not explicitly provided
-  if [[ -z "$PACKAGE_NAME" ]]; then
-    PACKAGE_NAME="$(basename "$REPO_URL" .git)"
-    PACKAGE_NAME="${PACKAGE_NAME%/}"
-  fi
-
-  # Run shared setup (copy plugin files, scaffold, clone, install)
-  SETUP_ARGS="--url $REPO_URL"
-  if [[ -n "$PACKAGE_NAME" ]]; then
-    SETUP_ARGS="$SETUP_ARGS --package $PACKAGE_NAME"
-  fi
-  "$PLUGIN_ROOT/scripts/setup.sh" $SETUP_ARGS
-  if [[ $? -ne 0 ]]; then
-    echo "❌ Setup failed" >&2
-    exit 1
-  fi
-
-  echo ""
-  echo "━━━ Configuring loop ━━━"
-
-  # Default completion promise when using --url
-  if [[ "$COMPLETION_PROMISE" == "null" ]]; then
-    COMPLETION_PROMISE="ALL TESTS PASSING"
-    echo "  Completion promise defaulted to: $COMPLETION_PROMISE"
-  fi
-
-  # Compose the full prompt: user's task + program.md reference
-  PROMPT="Follow the instructions in .claude/plugins/slash-diy/program.md.
-
-Task: $PROMPT
-Repository: $REPO_URL
-Package: $PACKAGE_NAME"
-  echo "  Prompt composed with program.md reference"
-  echo ""
 fi
 
 # Create state file for stop hook (markdown with YAML frontmatter)

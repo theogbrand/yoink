@@ -15,45 +15,6 @@ You are building `diy_{sub_package}/` so that the Level 0 test suite for `diy_{t
 | Acceptable sub-dependencies | {acceptable_sub_dependencies} |
 | Max iterations | {max_iterations} |
 
-## Pre-flight
-
-Complete these steps IN ORDER before entering the loop.
-
-### 1. Verify baseline
-
-Run Level 0 tests with the REAL `{sub_package}` still installed:
-
-```bash
-uv run pytest diy_{top_package}/tests/ -v --tb=short 2>&1
-```
-
-**All tests MUST pass.** If any fail, STOP — the baseline is broken and must be fixed before proceeding.
-
-### 2. Rewrite imports
-
-Swap `{sub_package}` imports in `diy_{top_package}/` source code to point at `diy_{sub_package}`:
-
-```bash
-uv run inner_ralph.py rewrite-sub-imports --sub-package {sub_package} --target-dir diy_{top_package}
-```
-
-### 3. Scaffold the sub-package
-
-```bash
-mkdir -p diy_{sub_package}
-touch diy_{sub_package}/__init__.py
-```
-
-### 4. Initialize tracking
-
-```bash
-echo -e "commit\tscore\tpassed\tfailed\ttotal\tdescription" > results.tsv
-uv run run_tests.py > run.log 2>&1
-grep "^score:\|^passed:\|^failed:\|^total:" run.log
-```
-
-Record baseline (score should be ~0 after the import swap).
-
 ## The Loop
 
 ```

@@ -93,20 +93,57 @@ Use the **decomp-evaluator** agent. Pass it the library name and diy package nam
 
 ### 3. Implement
 
-# TODO: Fix this so prompt is properly defined
-<!-- a. Generate the inner ralph prompt using the output from step 2:
+a. Save the **decomp-evaluator** output from step 2 to `.claude/decomp_context.md`. The file must
+contain the evaluator's full Decompose decision (Decision, Reasoning, Category, Strategy,
+Functions to replace, Reference material, Acceptable sub-dependencies).
+
+b. Pre-flight Checks
+
+Complete these steps IN ORDER before entering the loop.
+
+### 1. Verify baseline
+
+Run Level 0 tests with the REAL `{sub_package}` still installed:
+
 ```bash
-uv run inner_ralph.py generate-prompt \
+uv run pytest diy_{top_package}/tests/ -v --tb=short 2>&1
+```
+
+**All tests MUST pass.** If any fail, STOP — the baseline is broken and must be fixed before proceeding.
+
+### 2. Rewrite imports
+
+Swap `{sub_package}` imports in `diy_{top_package}/` source code to point at `diy_{sub_package}`:
+
+```bash
+uv run inner_ralph.py rewrite-sub-imports --sub-package {sub_package} --target-dir diy_{top_package}
+```
+
+### 3. Scaffold the sub-package
+
+```bash
+mkdir -p diy_{sub_package}
+touch diy_{sub_package}/__init__.py
+```
+
+### 4. Initialize tracking
+
+```bash
+echo -e "commit\tscore\tpassed\tfailed\ttotal\tdescription" > results.tsv
+uv run run_tests.py > run.log 2>&1
+grep "^score:\|^passed:\|^failed:\|^total:" run.log
+```
+
+Record baseline (score should be ~0 after the import swap).
+
+c. Execute the setup script to initialize the inner DIY loop with the decomp context:
+
+```bash
+"${CLAUDE_PLUGIN_ROOT}/scripts/activate-inner-diy-loop.sh" \
     --context decomp_context.md \
-    --top-package <PACKAGE> \
+    --package <PACKAGE> \
     --sub-package <LIBRARY> \
-    --max-iterations 30
-``` -->
-
-b. Execute the setup script to initialize the inner DIY loop:
-
-```bash
-"${CLAUDE_PLUGIN_ROOT}/scripts/activate-inner-diy-loop.sh" $ARGUMENTS
+    --max-iterations 10 \
 ```
 
 # TODO: add the SubAgent Stop Hook to call inner-diy-loop-stop-hook.sh and tie it to the decomp-implementer agent 
