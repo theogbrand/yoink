@@ -1,10 +1,24 @@
 # slash-diy
 
-A plugin to clone packages from SDKs you don't quite trust.
+A plugin to clone dependencies you don't trust. No more supply chain attacks.
 
 ## What is slash-diy?
 
-slash-diy decomposes third-party packages into local, dependency-free replacements. Point it at a package, describe what you need, and it will curate tests from the original library, then iteratively decompose each dependency until you have a fully local implementation.
+They say don't reinvent the wheel. But what if you could just "yoink" the exact
+functionality you need out of a library, strip away everything you don't, and
+own the result? That's slash-diy, letting you reinvent the wheel by keeping the
+good bits and rebuilding on your own terms to reduce external dependencies.
+
+### How does it work?
+
+slash-diy decomposes third-party functionality into local replacements. Point it
+at a package, describe what you need, and it will curate tests from the original
+library, iteratively decompose dependencies, and implement each in a ralph loop
+until you have a local implementation.
+
+Instead of importing a 50k-line SDK for three function calls, yoink those three
+functions into your own codebase. Verified against the original's own test
+expectations, but free from the dependency chain that came with it.
 
 ## Quick Start
 
@@ -74,20 +88,20 @@ Phase 1: Dependency decomposition. Seeds the queue with the target package and i
 **Options:**
 - `--package <package_name>` - The target package name (required)
 
-## When to Use
+## When to use this?
 
-**Good for:**
+**What is this good for?**
 - Replacing small-to-medium utility packages with zero-dependency local code
 - Packages with unclear maintenance or security posture
 - Reducing supply chain attack surface
 - Cases where you only need a subset of a package's features
 
-**Not good for:**
+**What is this not good for?**
 - Large, complex frameworks (React, Express, etc.)
 - Packages with deep platform-specific bindings
 - Cryptographic implementations (use audited libraries)
 
-## For Development
+## How to use this in development or contribute?
 
 ```bash
 claude --plugin-dir .
@@ -101,4 +115,4 @@ After editing skill or agent files, run the linter to validate conventions and r
 uv run python scripts/orchestration-linter.py --write
 ```
 
-See [CONTRIBUTING.md](./CONTRIBUTING.md) for the full list of conventions enforced.
+See [CONTRIBUTING.md](./CONTRIBUTING.md) for more.
