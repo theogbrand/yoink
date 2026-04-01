@@ -37,39 +37,38 @@ Each item in the queue is a library name. The goal is to decompose one abstracti
    - **Keep** → go back to step 1.
    - **Decompose** → continue to step 3 with the evaluation output.
 
-3. **Implement & Validate** — Spawn a subagent using the Agent tool with this task:
+3. **Implement & Validate (Inner Ralph Loop)** — Save the evaluation output and run an inner ralph loop:
 
-   ```
-   Implement or replace <LIBRARY> in diy_<PACKAGE>/ based on this evaluation:
+   a. Save the evaluation output from step 2 to a file:
+   ```bash
+   cat > decomp_context.md << 'EVAL'
    <PASTE EVALUATION OUTPUT FROM STEP 2>
-
-   Context:
-   - If this is the first item (the target package itself): build the initial implementation
-     using whatever libraries the decomposition strategy identifies as the next layer down.
-   - If this is a sub-dependency from a previous pass: replace its usage in diy_<PACKAGE>/
-     with the next-layer-down alternative.
-   - One level only: decompose to the immediate next layer down (e.g., orchestration layer →
-     underlying SDKs, API wrapper → raw HTTP). Do NOT skip levels.
-   - Use the reference material identified by the evaluation (API docs for wrappers, library
-     source for orchestration layers).
-   - ONLY edit files within diy_<PACKAGE>/.
-
-   Validation loop:
-   1. Read current diy_<PACKAGE>/ source files
-   2. Study failing tests: uv run pytest diy_<PACKAGE>/tests/generated/ -x --tb=short 2>&1
-   3. Implement changes in diy_<PACKAGE>/
-   4. Run the test suite: uv run .claude/plugins/slash-diy/run_tests.py
-   5. Repeat until all tests pass
-
-   When done, commit the working implementation:
-     git add diy_<PACKAGE>/ && git commit -m "decomp: <description of what was implemented/replaced>"
-
-   Then report back:
-   - **What was done:** <summary of changes>
-   - **New imports:** <list of external libraries that diy_<PACKAGE>/ now imports as a result>
+   EVAL
    ```
 
-4. **Enqueue new dependencies** — Using the "New imports" from the implementation subagent, enqueue external libraries that `diy_<PACKAGE>/` now depends on:
+   b. Generate the inner ralph prompt:
+   ```bash
+   uv run inner_ralph.py generate-prompt \
+     --context decomp_context.md \
+     --top-package <PACKAGE> \
+     --sub-package <LIBRARY> \
+     --max-iterations 30
+   ```
+
+   c. Spawn a subagent using the Agent tool with the generated prompt from step (b) as the task.
+
+   The inner ralph loop will:
+   - Verify baseline tests pass with the real library
+   - Rewrite imports to point at the DIY replacement
+   - Iteratively build `diy_<LIBRARY>/` until all Level 0 tests pass
+   - Commit each improvement and revert regressions
+
+   d. After the subagent finishes, discover new external imports:
+   ```bash
+   grep -rh "^from \|^import " diy_<PACKAGE>/ --include="*.py" | sort -u
+   ```
+
+4. **Enqueue new dependencies** — Using the new imports discovered in step 3d, enqueue external libraries that `diy_<PACKAGE>/` now depends on:
    ```bash
    uv run python scripts/decomp.py enqueue <lib1> <lib2> ...
    ```

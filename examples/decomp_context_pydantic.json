@@ -1,0 +1,13 @@
+{
+  "category": "Utility",
+  "strategy": "Replace pydantic BaseModel with plain Python classes. Use __init__ for field declarations, custom model_dump() methods for serialization.",
+  "functions_to_replace": [
+    "BaseModel → plain Python classes",
+    "Field(default=None) → regular init parameters with defaults",
+    "PrivateAttr() → Direct assignment in __init__",
+    "model_dump() → custom serialization method",
+    "model_config with extra='allow' → __setattr__ permissiveness or **kwargs in __init__"
+  ],
+  "reference_material": ".slash_diy/reference/pydantic/",
+  "acceptable_sub_dependencies": []
+}

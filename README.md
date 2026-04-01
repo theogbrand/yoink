@@ -114,6 +114,46 @@ Phase 1: Dependency decomposition. Seeds the queue with the target package and i
 **Options:**
 - `--package <package_name>` - The target package name (required)
 
+### /generate-ralph-prompt
+
+Generate an inner ralph loop prompt from a decomposition context file. Useful for inspecting the prompt before running it. Requires `/test-curate` to have been completed first.
+
+**Example Usage:**
+```bash
+/generate-ralph-prompt --context examples/decomp_context_openai.md --top-package litellm --sub-package openai --max-iterations 30
+```
+
+**Usage:**
+```bash
+/generate-ralph-prompt --context <context_file> --top-package <package> --sub-package <library> [--max-iterations <n>]
+```
+
+**Options:**
+- `--context <file>` - Path to decomposition context (JSON or markdown evaluation output) (required)
+- `--top-package <package>` - Top-level package name (required)
+- `--sub-package <library>` - Sub-package to build a DIY replacement for (required)
+- `--max-iterations <n>` - Max loop iterations (default: 30)
+
+### /run-ralph-loop
+
+Run an inner ralph loop end-to-end: generates the prompt and spawns a subagent to iteratively build a `diy_<sub_package>/` replacement. Requires `/test-curate` to have been completed first.
+
+**Example Usage:**
+```bash
+/run-ralph-loop --context examples/decomp_context_pydantic.md --top-package litellm --sub-package pydantic --max-iterations 30
+```
+
+**Usage:**
+```bash
+/run-ralph-loop --context <context_file> --top-package <package> --sub-package <library> [--max-iterations <n>]
+```
+
+**Options:**
+- `--context <file>` - Path to decomposition context (JSON or markdown evaluation output) (required)
+- `--top-package <package>` - Top-level package name (required)
+- `--sub-package <library>` - Sub-package to build a DIY replacement for (required)
+- `--max-iterations <n>` - Max loop iterations (default: 30)
+
 ## Prompt Writing Tips
 
 ### Clear completion criteria
@@ -181,7 +221,7 @@ Always use `--max-iterations` to prevent infinite loops:
 claude --plugin-dir .
 ```
 
-Take over from step 3 of decomposition/decomposition-orchestrator.md
+Step 3 of decomposition/decomposition-orchestrator.md uses the inner ralph loop below.
 
 ## Testing Inner Ralph Loop
 
@@ -193,7 +233,9 @@ You need a project that has already completed Phase 0 (curated test suite exists
 
 ### 1. Create a decomposition context
 
-Save as `decomp_context.json`:
+The context can be **JSON** or **markdown** (the orchestrator's evaluate step outputs markdown directly).
+
+**JSON format** — save as `decomp_context.json`:
 
 ```json
 {
@@ -205,77 +247,23 @@ Save as `decomp_context.json`:
 }
 ```
 
-Example Output from Orchestrator:
-For now, Orchestrator outputs in Markdown:
+**Markdown format** — save evaluation output as `decomp_context.md`:
 
-where decomp-queue.json has {
-  "pending": ["openai"]
-}:
-```markdown
-Decision: Decompose
-Reasoning: openai is a vendor SDK. The core usage is
-limited to instantiating a client and calling
-chat.completions.create(), both of which are
-straightforward to replace using httpx. The exception
-coupling adds complexity but is manageable.
-Category: API wrapper
-Strategy: Replace with raw HTTP calls using httpx:
-1. Create a lightweight client that takes api_key,
-base_url, timeout and calls {base_url}/chat/completions
-via httpx.post()
-2. Remove inheritance from openai exception classes —
-define independent exceptions
-3. Replace openai._models.BaseModel usage in
-types/utils.py with pydantic BaseModel
-4. Replace openai.types.completion_usage.* imports with
-custom equivalents
-Functions to replace:
-- openai.OpenAI() constructor
-- client.chat.completions.create() and with_raw_response
-variant
-- All openai exception base classes
-- openai._models.BaseModel (alias for OpenAIObject)
-- openai.types.completion_usage.CompletionTokensDetails,
-CompletionUsage, PromptTokensDetails
-Acceptable sub-dependencies: httpx (for HTTP calls),
-pydantic (already used)
-```
+Example for `openai`: refer to examples/decomp_context_openai.md
 
-where decomp_context.json has {
-  "pending": ["pydantic"]
-}:
-```markdown
-Decision: Decompose
-Reasoning: Pydantic is used only as simple data containers
-  with no validation. ~15 model classes use only BaseModel,
-  Field, PrivateAttr, model_dump(), and model_config. No
-validators are used.
-Category: Utility
-Strategy: Replace pydantic BaseModel with plain Python
-classes. Use __init__ for field declarations, custom
-model_dump() methods for serialization.
-Functions to replace:
-- BaseModel → plain Python classes
-- Field(default=None) → regular init parameters with
-defaults
-- PrivateAttr() → Direct assignment in __init__
-- model_dump() → custom serialization method
-- model_config with extra='allow' → __setattr__
-permissiveness or **kwargs in __init__
-Acceptable sub-dependencies: None. Standard library only.
-```
+Example for `pydantic`: refer to examples/decomp_context_pydantic.md
 
 ### 2. Generate the prompt
 
 ```bash
 uv run inner_ralph.py generate-prompt \
-  --context decomp_context.json \
+  --context decomp_context.md \
   --top-package litellm \
-  --sub-package annotated-types \
+  --sub-package openai \
   --max-iterations 30
 ```
 
-This outputs a complete, self-contained prompt that includes pre-flight steps (baseline verification, import rewriting, scaffolding) and the iterative loop instructions.
+The `--context` flag accepts either JSON or markdown — format is auto-detected. This outputs a complete, self-contained prompt that includes pre-flight steps (baseline verification, import rewriting, scaffolding) and the iterative loop instructions.
 
 ### 3. Run it
 
