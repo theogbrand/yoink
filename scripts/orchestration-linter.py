@@ -22,7 +22,9 @@ Usage:
 import argparse
 import re
 import sys
+from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Literal
 
 SKILLS_DIR = Path(__file__).resolve().parent.parent / "skills"
 AGENTS_DIR = Path(__file__).resolve().parent.parent / "agents"
@@ -59,15 +61,62 @@ SCRIPT_PATTERNS = [
     re.compile(r"uv run (pytest)\b"),
 ]
 
+CODE_BLOCK_PATTERN = re.compile(r"```(?:bash|!)\n(.*?)```", re.DOTALL)
 
+StepType = Literal["skill", "agent", "inline"]
+DetailKind = Literal["agent", "runs", "conditional"]
+
+
+@dataclass
 class LintWarning:
-    def __init__(self, file: str, line: int, message: str) -> None:
-        self.file = file
-        self.line = line
-        self.message = message
+    file: str
+    line: int
+    message: str
 
     def __str__(self) -> str:
         return f"  {self.file}:{self.line}: {self.message}"
+
+
+@dataclass
+class StepDetail:
+    kind: DetailKind
+    label: str
+
+
+@dataclass
+class Conditional:
+    condition: str
+    action: str
+
+
+@dataclass
+class Step:
+    header: str
+    body: str
+    num: int
+    step_type: StepType
+    # Set when step_type == "skill"; None otherwise.
+    skill_name: str | None = None
+    # Set when step_type == "agent"; None otherwise.
+    agent_name: str | None = None
+    conditionals: list[Conditional] = field(default_factory=list)
+    scripts: list[str] = field(default_factory=list)
+    details: list[StepDetail] = field(default_factory=list)
+
+
+@dataclass
+class Section:
+    title: str | None
+    steps: list[Step]
+    loop_start: int | None = None
+    loop_target: int | None = None
+
+
+@dataclass
+class SkillData:
+    content: str
+    sections: list[Section]
+    argument_hint: str | None
 
 
 ARGUMENT_HINT_PATTERN = re.compile(r'^argument-hint:\s*"(.+)"$', re.MULTILINE)
@@ -98,6 +147,27 @@ def parse_agents() -> dict[str, str]:
             description = desc_match.group(1).strip() if desc_match else ""
             agents[name] = description
     return agents
+
+
+def _format_script_label(groups: tuple[str | None, ...]) -> str:
+    """Format a script label from regex match groups.
+
+    Handles three match shapes:
+      (tool,)                        -> "pytest"
+      (path_var, script_path)        -> "${CLAUDE_PLUGIN_ROOT}/scripts/foo.py"
+      (path_var, script_path, subcmd) -> "${CLAUDE_PLUGIN_ROOT}/scripts/foo.py dequeue"
+    """
+    if len(groups) == 1:
+        return groups[0] or ""
+    elif len(groups) == 2:
+        path_var, script_path = groups
+        return f"${{{path_var}}}/{script_path}"
+    else:
+        path_var, script_path, subcommand = groups
+        label = f"${{{path_var}}}/{script_path}"
+        if subcommand:
+            label = f"{label} {subcommand}"
+        return label
 
 
 # --- Linting ---
@@ -198,17 +268,17 @@ def lint_command(
     current_section_start = 0
     for i, line in enumerate(lines, 1):
         if re.match(r"^##\s+", line) and not re.match(r"^###", line):
-            if section_steps:
-                _check_step_sequence(
-                    warnings, filename, section_steps, current_section_start
-                )
+            warnings.extend(
+                _check_step_sequence(filename, section_steps, current_section_start)
+            )
             section_steps = []
             current_section_start = i
         step_match = re.match(r"^###\s+(\d+)\.", line)
         if step_match:
             section_steps.append(int(step_match.group(1)))
-    if section_steps:
-        _check_step_sequence(warnings, filename, section_steps, current_section_start)
+    warnings.extend(
+        _check_step_sequence(filename, section_steps, current_section_start)
+    )
 
     # Script references should use ${CLAUDE_PLUGIN_ROOT}/ or ${CLAUDE_SKILL_DIR}/, not hardcoded paths
     for i, line in enumerate(lines, 1):
@@ -260,7 +330,6 @@ def lint_command(
 
     # Loop back target must match the first step after Begin loop
     for begin, back in zip(begin_loops, loop_backs):
-        # Find the first ### N. step after the Begin loop marker
         first_step_after = STEP_HEADER_PATTERN.search(body, begin.end())
         if first_step_after:
             expected_target = int(first_step_after.group(1))
@@ -287,37 +356,39 @@ def lint_command(
 
 
 def _check_step_sequence(
-    warnings: list[LintWarning],
     filename: str,
     step_numbers: list[int],
     section_start_line: int,
-) -> None:
+) -> list[LintWarning]:
+    if not step_numbers:
+        return []
     expected = list(range(1, len(step_numbers) + 1))
     if step_numbers != expected:
-        warnings.append(
+        return [
             LintWarning(
                 filename,
                 section_start_line,
                 f"Steps should be numbered 1, 2, 3... but found {step_numbers}",
             )
-        )
+        ]
+    return []
 
 
 # --- Parsing ---
 
 
-def extract_sections(content: str) -> list[dict]:
+def extract_sections(content: str) -> list[Section]:
     """Split content into phases/sections, then extract steps from each."""
     content = re.sub(
         r"^---\n.*?^---\n", "", content, count=1, flags=re.DOTALL | re.MULTILINE
     )
 
     section_matches = list(SECTION_HEADER_PATTERN.finditer(content))
-    sections = []
+    sections: list[Section] = []
 
     if not section_matches:
         parsed = _parse_block(content)
-        if parsed["steps"]:
+        if parsed.steps:
             sections.append(parsed)
         return sections
 
@@ -325,7 +396,7 @@ def extract_sections(content: str) -> list[dict]:
     preamble = content[: section_matches[0].start()].strip()
     if preamble:
         parsed = _parse_block(preamble)
-        if parsed["steps"]:
+        if parsed.steps:
             sections.append(parsed)
 
     for i, match in enumerate(section_matches):
@@ -337,27 +408,26 @@ def extract_sections(content: str) -> list[dict]:
             else len(content)
         )
         parsed = _parse_block(content[start:end])
-        parsed["title"] = title
-        if parsed["steps"]:
+        parsed.title = title
+        if parsed.steps:
             sections.append(parsed)
 
     return sections
 
 
-def _parse_block(block: str) -> dict:
+def _parse_block(block: str) -> Section:
     """Extract steps and loop markers from a block of text."""
-    result: dict = {"title": None, "steps": [], "loop_start": None, "loop_target": None}
+    section = Section(title=None, steps=[])
 
     # Detect loop markers
     begin_match = BEGIN_LOOP_PATTERN.search(block)
     back_match = LOOP_BACK_PATTERN.search(block)
 
     if begin_match and back_match:
-        result["loop_target"] = int(back_match.group(1))
-        # Find first step after Begin loop to determine loop_start
+        section.loop_target = int(back_match.group(1))
         first_step = STEP_HEADER_PATTERN.search(block, begin_match.end())
         if first_step:
-            result["loop_start"] = int(first_step.group(1))
+            section.loop_start = int(first_step.group(1))
 
     # Extract ### N. steps
     step_matches = list(STEP_HEADER_PATTERN.finditer(block))
@@ -373,44 +443,93 @@ def _parse_block(block: str) -> dict:
             step_body = block[start : back_match.start()]
 
         step = _classify_step(match.group(0), step_body, int(match.group(1)))
-        result["steps"].append(step)
+        section.steps.append(step)
 
-    return result
+    return section
 
 
-def _classify_step(header: str, body: str, step_num: int) -> dict:
-    """Classify a step."""
-    step: dict = {"header": header.strip(), "body": body, "num": step_num}
-
+def _classify_step(header: str, body: str, step_num: int) -> Step:
+    """Classify a step by its primary type and extract structured details."""
     agent_match = AGENT_PATTERN.search(body)
     skill_match = SKILL_INVOKE_PATTERN.search(body)
+
+    step_type: StepType
+    skill_name: str | None = None
+    agent_name: str | None = None
+
     if skill_match:
-        step["type"] = "skill"
-        step["skill"] = skill_match.group(1)
+        step_type = "skill"
+        skill_name = skill_match.group(1)
     elif agent_match:
-        step["type"] = "agent"
-        step["agent"] = agent_match.group(1)
+        step_type = "agent"
+        agent_name = agent_match.group(1)
     else:
-        step["type"] = "inline"
+        step_type = "inline"
 
-    conditionals = CONDITIONAL_PATTERN.findall(body)
-    if conditionals:
-        step["conditionals"] = [
-            (cond.strip(), action.strip()) for cond, action in conditionals
-        ]
+    conditionals = [
+        Conditional(condition=cond.strip(), action=action.strip())
+        for cond, action in CONDITIONAL_PATTERN.findall(body)
+    ]
 
-    # Extract script references from bash code blocks
     scripts = _extract_scripts(body)
-    if scripts:
-        step["scripts"] = scripts
 
-    return step
+    return Step(
+        header=header.strip(),
+        body=body,
+        num=step_num,
+        step_type=step_type,
+        skill_name=skill_name,
+        agent_name=agent_name,
+        conditionals=conditionals,
+        scripts=scripts,
+        details=_build_ordered_details(body, step_type, agent_name),
+    )
+
+
+def _build_ordered_details(
+    body: str, step_type: StepType, agent_name: str | None
+) -> list[StepDetail]:
+    """Build detail items ordered by their position in the source text."""
+    positioned: list[tuple[int, StepDetail]] = []
+
+    if step_type == "agent" and agent_name is not None:
+        agent_match = AGENT_PATTERN.search(body)
+        if agent_match:
+            positioned.append(
+                (agent_match.start(), StepDetail("agent", f"agent: {agent_name}"))
+            )
+
+    for match in CONDITIONAL_PATTERN.finditer(body):
+        condition = match.group(1).strip()
+        action = match.group(2).strip()
+        positioned.append(
+            (match.start(), StepDetail("conditional", f"{condition} \u2192 {action}"))
+        )
+
+    # Scripts are extracted from code blocks; use code block position as anchor.
+    seen_scripts: set[str] = set()
+    for block_match in CODE_BLOCK_PATTERN.finditer(body):
+        block_pos = block_match.start()
+        block_text = block_match.group(1)
+        for pattern in SCRIPT_PATTERNS:
+            for match in pattern.finditer(block_text):
+                label = _format_script_label(match.groups())
+                if label not in seen_scripts:
+                    seen_scripts.add(label)
+                    positioned.append(
+                        (
+                            block_pos + match.start(),
+                            StepDetail("runs", f"runs: {label}"),
+                        )
+                    )
+
+    positioned.sort(key=lambda item: item[0])
+    return [detail for _, detail in positioned]
 
 
 def _extract_scripts(body: str) -> list[str]:
     """Extract unique script invocations from bash code blocks in step body."""
-    # Only look inside ```bash ... ``` or ```! ... ``` blocks
-    code_blocks = re.findall(r"```(?:bash|!)\n(.*?)```", body, re.DOTALL)
+    code_blocks = CODE_BLOCK_PATTERN.findall(body)
     if not code_blocks:
         return []
 
@@ -419,20 +538,7 @@ def _extract_scripts(body: str) -> list[str]:
     for block in code_blocks:
         for pattern in SCRIPT_PATTERNS:
             for match in pattern.finditer(block):
-                groups = match.groups()
-                if len(groups) == 1:
-                    # External tool (e.g., pytest) — no path variable
-                    label = groups[0]
-                elif len(groups) == 2:
-                    # ${VAR}/path — no subcommand
-                    path_var, script_path = groups
-                    label = f"${{{path_var}}}/{script_path}"
-                else:
-                    # ${VAR}/path subcommand
-                    path_var, script_path, subcommand = groups
-                    label = f"${{{path_var}}}/{script_path}"
-                    if subcommand:
-                        label = f"{label} {subcommand}"
+                label = _format_script_label(match.groups())
                 if label not in seen:
                     seen.add(label)
                     scripts.append(label)
@@ -452,61 +558,50 @@ def _clean_label(header: str) -> str:
 
 
 def render_section(
-    section: dict,
-    skill_data: dict | None = None,
+    section: Section,
+    skill_data: dict[str, SkillData] | None = None,
     indent: str = "  ",
     expanding: frozenset[str] = frozenset(),
 ) -> list[str]:
     """Render a section with its steps and loop markers."""
     lines: list[str] = []
 
-    if section["title"]:
-        lines.append(f"{indent}[{section['title']}]")
+    if section.title:
+        lines.append(f"{indent}[{section.title}]")
 
-    loop_start = section.get("loop_start")
-    loop_target = section.get("loop_target")
-    has_loop = loop_start is not None and loop_target is not None
+    has_loop = section.loop_start is not None and section.loop_target is not None
 
-    for step in section["steps"]:
-        step_num = step["num"]
-        in_loop = has_loop and step_num >= loop_start
+    for step in section.steps:
+        in_loop = has_loop and step.num >= (section.loop_start or 0)
         connector = "\u2502 " if in_loop else ""
 
         # Loop open marker
-        if has_loop and step_num == loop_start:
+        if has_loop and step.num == section.loop_start:
             lines.append(f"{indent}\u250c\u2500 loop")
 
         # Label with optional skill annotation
-        label = _clean_label(step["header"])
-        if step.get("type") == "skill":
-            label += f" \u2192 /{step['skill']}"
-        lines.append(f"{indent}{connector}{step_num}. {label}")
+        label = _clean_label(step.header)
+        if step.step_type == "skill":
+            label += f" \u2192 /{step.skill_name}"
+        lines.append(f"{indent}{connector}{step.num}. {label}")
 
-        # Collect sub-lines (agent + scripts + conditionals)
-        sub_lines: list[str] = []
-        if step["type"] == "agent":
-            sub_lines.append(f"agent: {step['agent']}")
-        if step.get("scripts"):
-            for script in step["scripts"]:
-                sub_lines.append(f"runs: {script}")
-        if step.get("conditionals"):
-            for condition, action in step["conditionals"]:
-                sub_lines.append(f"{condition} \u2192 {action}")
+        # Collect sub-lines in source order
+        sub_lines = [detail.label for detail in step.details]
 
         # Don't render sub-lines for skill steps (the expansion replaces them)
-        if step.get("type") != "skill":
+        if step.step_type != "skill":
             for j, sub in enumerate(sub_lines):
                 is_last = j == len(sub_lines) - 1
                 branch = "\u2514\u2500" if is_last else "\u251c\u2500"
                 lines.append(f"{indent}{connector}   {branch} {sub}")
 
         # Expand nested skill inline
-        if step.get("type") == "skill" and skill_data:
-            skill_name = step["skill"]
+        if step.step_type == "skill" and skill_data and step.skill_name:
+            skill_name = step.skill_name
             if skill_name in skill_data and skill_name not in expanding:
                 nested_indent = indent + connector + "   "
                 nested_expanding = expanding | {skill_name}
-                nested_sections = skill_data[skill_name]["sections"]
+                nested_sections = skill_data[skill_name].sections
                 if nested_sections:
                     for nested_section in nested_sections:
                         lines.extend(
@@ -519,7 +614,7 @@ def render_section(
                         )
                 else:
                     # Skill has no structured steps; extract scripts from raw content
-                    raw_content = skill_data[skill_name]["content"]
+                    raw_content = skill_data[skill_name].content
                     scripts = _extract_scripts(raw_content)
                     for j, script in enumerate(scripts):
                         is_last = j == len(scripts) - 1
@@ -528,13 +623,13 @@ def render_section(
 
     # Loop close marker
     if has_loop:
-        lines.append(f"{indent}\u2514\u2500 back to step {loop_target}")
+        lines.append(f"{indent}\u2514\u2500 back to step {section.loop_target}")
 
     return lines
 
 
 def render_command(
-    command_name: str, content: str, skill_data: dict | None = None
+    command_name: str, content: str, skill_data: dict[str, SkillData] | None = None
 ) -> list[str]:
     argument_hint = parse_argument_hint(content)
     header = f"/{command_name} {argument_hint}" if argument_hint else f"/{command_name}"
@@ -556,9 +651,9 @@ def render_command(
 # --- Output ---
 
 
-def load_all_skills() -> dict[str, dict]:
+def load_all_skills() -> dict[str, SkillData]:
     """Pre-load all skills for nested expansion during rendering."""
-    skill_data: dict[str, dict] = {}
+    skill_data: dict[str, SkillData] = {}
     if not SKILLS_DIR.exists():
         return skill_data
     for skill_dir in sorted(SKILLS_DIR.iterdir()):
@@ -566,11 +661,11 @@ def load_all_skills() -> dict[str, dict]:
         if not skill_file.exists():
             continue
         content = skill_file.read_text()
-        skill_data[skill_dir.name] = {
-            "content": content,
-            "sections": extract_sections(content),
-            "argument_hint": parse_argument_hint(content),
-        }
+        skill_data[skill_dir.name] = SkillData(
+            content=content,
+            sections=extract_sections(content),
+            argument_hint=parse_argument_hint(content),
+        )
     return skill_data
 
 

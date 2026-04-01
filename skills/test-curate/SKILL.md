@@ -21,6 +21,8 @@ Parse your prompt to identify:
 
 ### 1. Discover relevant tests
 
+- If **`--skip-discovery` is present** then **skip to step 2**.
+
 Use the **test-discoverer** agent to search for relevant tests from the original library's test suite.
 
 Pass it the package name and target function.

@@ -1,7 +1,7 @@
 ---
 name: diy-decomp
 description: "Curate tests then decompose dependencies"
-argument-hint: "PROMPT [--url GITHUB_URL] [--package PACKAGE_NAME]"
+argument-hint: "PROMPT [--url GITHUB_URL] [--package PACKAGE_NAME] [--skip-discovery]"
 allowed-tools: ["Skill(setup *)", "Skill(test-curate *)", "Skill(decompose *)"]
 disable-model-invocation: true
 ---
