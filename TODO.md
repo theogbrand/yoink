@@ -39,3 +39,4 @@
 ## Inner Ralph Loop
 - [ ] Add the SubAgent Stop Hook to call inner-diy-loop-stop-hook.sh and tie it to the decomp-implementer agent 
 - [ ] rewrite imports from old library to newly written library to pass tests
+- [] Use SubAgent Spawn Hook in decomp-implementor agent to read the inner-diy-loop.local.md file and execute the inner ralph loop until all Level 0 tests pass or max iterations are reached.
