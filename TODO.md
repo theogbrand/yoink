@@ -35,3 +35,7 @@
     - [ ] Otherwise, define how to handle non-PyTest test cases (TBD)
 - [ ] Matching tests with the release that we downloaded
 - [ ] We should record down the history of all the reasoning, input, and outputs between all the steps in the workflow, so that we can read what the agent decided to do at every step. 
+
+## Inner Ralph Loop
+- [ ] Add the SubAgent Stop Hook to call inner-diy-loop-stop-hook.sh and tie it to the decomp-implementer agent 
+- [ ] rewrite imports from old library to newly written library to pass tests
