@@ -146,11 +146,11 @@ c. Execute this setup script to initialize the prompt for the inner DIY loop:
     --max-iterations 10 \
 ```
 
-Spawn the **decomp-implementer** agent.
+d. Spawn the **decomp-implementer** agent.
 
 You MUST only move to step 4 when you have recieved the COMPLETION PROMISE (<promise>DONE</promise>) from the **decomp-implementer** agent. If a **decomp-implementer** agent exits but does not return you the completion promise (<promise>DONE</promise>), spin up a new **decomp-implementer** agent to continue the task.
 
-d. After the subagent finishes and exits with a completion promise, discover new external imports:
+e. After the subagent finishes and exits with a completion promise, discover new external imports:
 ```bash
 grep -rh "^from \|^import " diy_<PACKAGE>/ --include="*.py" | sort -u
 ```
