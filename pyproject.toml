@@ -11,6 +11,9 @@ dependencies = [
 python_files = ["test_*.py", "disc_test_*.py"]
 asyncio_mode = "auto"
 
+[tool.ty.src]
+exclude = [".agents/"]
+
 [dependency-groups]
 dev = [
     "ruff>=0.15.8",

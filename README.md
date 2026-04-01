@@ -187,3 +187,13 @@ Always use `--max-iterations` to prevent infinite loops:
 ```bash
 claude --plugin-dir .
 ```
+
+### Orchestration Linter
+
+After editing command or agent files, run the linter to validate conventions and regenerate the flow visualization:
+
+```bash
+uv run python scripts/orchestration-linter.py --write
+```
+
+See [CONTRIBUTING.md](./CONTRIBUTING.md) for the full list of conventions enforced.
