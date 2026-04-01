@@ -2,6 +2,7 @@
 description: "Curate tests then decompose dependencies"
 argument-hint: "PROMPT [--url GITHUB_URL] [--package PACKAGE_NAME]"
 allowed-tools: ["Bash(${CLAUDE_PLUGIN_ROOT}/scripts/setup.sh:*)"]
+disable-model-invocation: true
 ---
 
 # DIY Decomp

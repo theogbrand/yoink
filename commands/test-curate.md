@@ -1,6 +1,7 @@
 ---
 description: "Phase 0: Generate and discover tests, validate against real library"
 argument-hint: "PROMPT --package PACKAGE_NAME"
+disable-model-invocation: true
 ---
 
 # Test Curate

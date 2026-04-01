@@ -65,6 +65,20 @@ class LintWarning:
         return f"  {self.file}:{self.line}: {self.message}"
 
 
+ARGUMENT_HINT_PATTERN = re.compile(r'^argument-hint:\s*"(.+)"$', re.MULTILINE)
+
+
+def parse_argument_hint(content: str) -> str | None:
+    """Extract argument-hint from YAML frontmatter."""
+    frontmatter_match = re.match(
+        r"^---\n(.*?)^---\n", content, re.DOTALL | re.MULTILINE
+    )
+    if not frontmatter_match:
+        return None
+    match = ARGUMENT_HINT_PATTERN.search(frontmatter_match.group(1))
+    return match.group(1) if match else None
+
+
 def parse_agents() -> dict[str, str]:
     """Read agent files and return {name: description}."""
     agents = {}
@@ -447,7 +461,9 @@ def render_section(section: dict) -> list[str]:
 
 
 def render_command(command_name: str, content: str) -> list[str]:
-    lines = [f"/{command_name}"]
+    argument_hint = parse_argument_hint(content)
+    header = f"/{command_name} {argument_hint}" if argument_hint else f"/{command_name}"
+    lines = [header]
 
     sections = extract_sections(content)
     if not sections:

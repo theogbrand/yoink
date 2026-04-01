@@ -31,6 +31,7 @@ The linter validates:
 | Loop start | `**Begin loop.**` | `**Begin loop.** Repeat until the queue is empty.` |
 | Loop end | `**Loop back to step N.**` | `**Loop back to step 1.**` |
 | Scripts | `${CLAUDE_PLUGIN_ROOT}/` prefix | `uv run ${CLAUDE_PLUGIN_ROOT}/run_tests.py` |
+| Arguments | `argument-hint:` frontmatter | `argument-hint: "PROMPT --package PKG"` |
 
 `ORCHESTRATION_FLOW.md` is auto-generated and should not be edited manually. Always regenerate it with `--write` after making changes.
 

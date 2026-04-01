@@ -1,6 +1,7 @@
 ---
 description: "Phase 1: Dependency decomposition"
 argument-hint: "--package PACKAGE_NAME"
+disable-model-invocation: true
 ---
 
 # Decompose
