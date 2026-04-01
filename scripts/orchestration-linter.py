@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """
-Lint orchestrator command files for convention compliance. Generates
+Lint orchestrator skill files for convention compliance. Generates
 ORCHESTRATION_FLOW.md as a side effect.
 
-Validates these conventions in commands/*.md:
+Validates these conventions in skills/*/SKILL.md:
 
   Sections:       ## headers (e.g., "## Phase 0: Test Curation")
   Steps:          ### N. headers, sequential per section (e.g., "### 1. Dequeue")
@@ -11,7 +11,7 @@ Validates these conventions in commands/*.md:
   Conditionals:   - If **condition** then **action**.
   Loop start:     **Begin loop.** (before first loop step)
   Loop end:       **Loop back to step N.** (after last loop step, paired with Begin)
-  Scripts:        ${CLAUDE_PLUGIN_ROOT}/ prefix (no hardcoded or bare paths)
+  Scripts:        ${CLAUDE_PLUGIN_ROOT}/ or ${CLAUDE_SKILL_DIR}/ prefix (no hardcoded or bare paths)
 
 Usage:
   python scripts/orchestration-linter.py                # lint + print flow
@@ -24,11 +24,11 @@ import re
 import sys
 from pathlib import Path
 
-COMMANDS_DIR = Path(__file__).resolve().parent.parent / "commands"
+SKILLS_DIR = Path(__file__).resolve().parent.parent / "skills"
 AGENTS_DIR = Path(__file__).resolve().parent.parent / "agents"
 OUTPUT_FILE = Path(__file__).resolve().parent.parent / "ORCHESTRATION_FLOW.md"
 
-ORCHESTRATOR_COMMANDS = ["test-curate", "decompose", "diy-decomp", "diy-loop"]
+ORCHESTRATOR_COMMANDS = ["setup", "test-curate", "decompose", "diy-decomp", "diy-loop"]
 
 BEGIN_LOOP_PATTERN = re.compile(r"^\*\*Begin loop\.\*\*", re.MULTILINE)
 LOOP_BACK_PATTERN = re.compile(r"^\*\*Loop back to step (\d+)\.\*\*", re.MULTILINE)
@@ -40,16 +40,21 @@ CONDITIONAL_PATTERN = re.compile(
     r"[-*]\s+If\s+\*\*(.+?)\*\*\s+then\s+\*\*(.+?)\*\*", re.MULTILINE
 )
 # Match script invocations inside bash code blocks.
-# Convention: all plugin scripts use ${CLAUDE_PLUGIN_ROOT}/.
+# Convention: plugin scripts use ${CLAUDE_PLUGIN_ROOT}/ or ${CLAUDE_SKILL_DIR}/.
+PLUGIN_PATH_VAR = r"\$\{(?:CLAUDE_PLUGIN_ROOT|CLAUDE_SKILL_DIR)\}"
+SKILL_INVOKE_PATTERN = re.compile(r"Invoke\s+`?/(\S+?)`?\s")
+
+PLUGIN_PATH_VAR_CAPTURING = r"\$\{(CLAUDE_PLUGIN_ROOT|CLAUDE_SKILL_DIR)\}"
+
 SCRIPT_PATTERNS = [
-    # uv run python ${CLAUDE_PLUGIN_ROOT}/scripts/foo.py subcommand
+    # uv run python ${CLAUDE_PLUGIN_ROOT|CLAUDE_SKILL_DIR}/scripts/foo.py subcommand
     re.compile(
-        r"uv run python \$\{CLAUDE_PLUGIN_ROOT\}/(scripts/\S+\.py)(?:\s+(\w+))?"
+        rf"uv run python {PLUGIN_PATH_VAR_CAPTURING}/(scripts/\S+\.py)(?:\s+(\w+))?"
     ),
-    # uv run ${CLAUDE_PLUGIN_ROOT}/foo.py (no "python" prefix)
-    re.compile(r"uv run \$\{CLAUDE_PLUGIN_ROOT\}/(\S+\.py)"),
-    # "${CLAUDE_PLUGIN_ROOT}/scripts/foo.sh" (shell scripts, possibly quoted)
-    re.compile(r"\$\{CLAUDE_PLUGIN_ROOT\}/(scripts/\S+\.sh)"),
+    # uv run ${CLAUDE_PLUGIN_ROOT|CLAUDE_SKILL_DIR}/foo.py (no "python" prefix)
+    re.compile(rf"uv run {PLUGIN_PATH_VAR_CAPTURING}/(\S+\.py)"),
+    # "${CLAUDE_PLUGIN_ROOT|CLAUDE_SKILL_DIR}/scripts/foo.sh" (shell scripts, possibly quoted)
+    re.compile(rf"{PLUGIN_PATH_VAR_CAPTURING}/(scripts/\S+\.sh)"),
     # uv run pytest (external tools, not plugin scripts)
     re.compile(r"uv run (pytest)\b"),
 ]
@@ -101,9 +106,9 @@ def parse_agents() -> dict[str, str]:
 def lint_command(
     command_name: str, content: str, known_agents: set[str]
 ) -> list[LintWarning]:
-    """Check a command file follows conventions."""
+    """Check a skill file follows conventions."""
     warnings: list[LintWarning] = []
-    filename = f"commands/{command_name}.md"
+    filename = f"skills/{command_name}/SKILL.md"
     lines = content.split("\n")
     body = re.sub(
         r"^---\n.*?^---\n", "", content, count=1, flags=re.DOTALL | re.MULTILINE
@@ -134,6 +139,23 @@ def lint_command(
                     filename,
                     line_num,
                     f"Agent '{agent_name}' referenced but not found in agents/",
+                )
+            )
+
+    # Skill invocations must point to existing skills
+    for match in SKILL_INVOKE_PATTERN.finditer(body):
+        skill_name = match.group(1)
+        skill_file = SKILLS_DIR / skill_name / "SKILL.md"
+        if not skill_file.exists():
+            line_num = next(
+                (i for i, line in enumerate(lines, 1) if f"/{skill_name}" in line),
+                0,
+            )
+            warnings.append(
+                LintWarning(
+                    filename,
+                    line_num,
+                    f"Skill '/{skill_name}' invoked but not found in skills/",
                 )
             )
 
@@ -188,7 +210,7 @@ def lint_command(
     if section_steps:
         _check_step_sequence(warnings, filename, section_steps, current_section_start)
 
-    # Script references should use ${CLAUDE_PLUGIN_ROOT}/, not hardcoded paths
+    # Script references should use ${CLAUDE_PLUGIN_ROOT}/ or ${CLAUDE_SKILL_DIR}/, not hardcoded paths
     for i, line in enumerate(lines, 1):
         # Hardcoded .claude/plugins/ paths
         if re.search(r"\.claude/plugins/slash-diy/\S+\.(py|sh)", line):
@@ -196,19 +218,24 @@ def lint_command(
                 LintWarning(
                     filename,
                     i,
-                    "Use ${CLAUDE_PLUGIN_ROOT}/ instead of hardcoded plugin path. "
+                    "Use ${CLAUDE_PLUGIN_ROOT}/ or ${CLAUDE_SKILL_DIR}/ instead of hardcoded plugin path. "
                     f"Found: {line.strip()}",
                 )
             )
-        # Bare relative scripts/ paths (not inside ${CLAUDE_PLUGIN_ROOT}/)
-        if re.search(r"(?<!\{CLAUDE_PLUGIN_ROOT\}/)scripts/\S+\.(py|sh)", line):
-            # Skip if it's actually inside ${CLAUDE_PLUGIN_ROOT}/scripts/
-            if "${CLAUDE_PLUGIN_ROOT}/scripts/" not in line:
+        # Bare relative scripts/ paths (not inside ${CLAUDE_PLUGIN_ROOT}/ or ${CLAUDE_SKILL_DIR}/)
+        if re.search(
+            r"(?<!\{CLAUDE_PLUGIN_ROOT\}/)(?<!\{CLAUDE_SKILL_DIR\}/)scripts/\S+\.(py|sh)",
+            line,
+        ):
+            if (
+                "${CLAUDE_PLUGIN_ROOT}/scripts/" not in line
+                and "${CLAUDE_SKILL_DIR}/scripts/" not in line
+            ):
                 warnings.append(
                     LintWarning(
                         filename,
                         i,
-                        "Plugin scripts should use ${CLAUDE_PLUGIN_ROOT}/scripts/, "
+                        "Plugin scripts should use ${CLAUDE_PLUGIN_ROOT}/scripts/ or ${CLAUDE_SKILL_DIR}/scripts/, "
                         f"not bare 'scripts/' paths. Found: {line.strip()}",
                     )
                 )
@@ -356,7 +383,11 @@ def _classify_step(header: str, body: str, step_num: int) -> dict:
     step: dict = {"header": header.strip(), "body": body, "num": step_num}
 
     agent_match = AGENT_PATTERN.search(body)
-    if agent_match:
+    skill_match = SKILL_INVOKE_PATTERN.search(body)
+    if skill_match:
+        step["type"] = "skill"
+        step["skill"] = skill_match.group(1)
+    elif agent_match:
         step["type"] = "agent"
         step["agent"] = agent_match.group(1)
     else:
@@ -388,12 +419,20 @@ def _extract_scripts(body: str) -> list[str]:
     for block in code_blocks:
         for pattern in SCRIPT_PATTERNS:
             for match in pattern.finditer(block):
-                script_name = match.group(1)
-                # Include subcommand if present (e.g., "decomp.py enqueue")
-                if match.lastindex and match.lastindex >= 2 and match.group(2):
-                    label = f"{script_name} {match.group(2)}"
+                groups = match.groups()
+                if len(groups) == 1:
+                    # External tool (e.g., pytest) — no path variable
+                    label = groups[0]
+                elif len(groups) == 2:
+                    # ${VAR}/path — no subcommand
+                    path_var, script_path = groups
+                    label = f"${{{path_var}}}/{script_path}"
                 else:
-                    label = script_name
+                    # ${VAR}/path subcommand
+                    path_var, script_path, subcommand = groups
+                    label = f"${{{path_var}}}/{script_path}"
+                    if subcommand:
+                        label = f"{label} {subcommand}"
                 if label not in seen:
                     seen.add(label)
                     scripts.append(label)
@@ -412,10 +451,14 @@ def _clean_label(header: str) -> str:
 # --- Rendering ---
 
 
-def render_section(section: dict) -> list[str]:
+def render_section(
+    section: dict,
+    skill_data: dict | None = None,
+    indent: str = "  ",
+    expanding: frozenset[str] = frozenset(),
+) -> list[str]:
     """Render a section with its steps and loop markers."""
-    lines = []
-    indent = "  "
+    lines: list[str] = []
 
     if section["title"]:
         lines.append(f"{indent}[{section['title']}]")
@@ -433,12 +476,14 @@ def render_section(section: dict) -> list[str]:
         if has_loop and step_num == loop_start:
             lines.append(f"{indent}\u250c\u2500 loop")
 
-        # Label is always the step title
+        # Label with optional skill annotation
         label = _clean_label(step["header"])
+        if step.get("type") == "skill":
+            label += f" \u2192 /{step['skill']}"
         lines.append(f"{indent}{connector}{step_num}. {label}")
 
         # Collect sub-lines (agent + scripts + conditionals)
-        sub_lines = []
+        sub_lines: list[str] = []
         if step["type"] == "agent":
             sub_lines.append(f"agent: {step['agent']}")
         if step.get("scripts"):
@@ -448,10 +493,38 @@ def render_section(section: dict) -> list[str]:
             for condition, action in step["conditionals"]:
                 sub_lines.append(f"{condition} \u2192 {action}")
 
-        for j, sub in enumerate(sub_lines):
-            is_last = j == len(sub_lines) - 1
-            branch = "\u2514\u2500" if is_last else "\u251c\u2500"
-            lines.append(f"{indent}{connector}   {branch} {sub}")
+        # Don't render sub-lines for skill steps (the expansion replaces them)
+        if step.get("type") != "skill":
+            for j, sub in enumerate(sub_lines):
+                is_last = j == len(sub_lines) - 1
+                branch = "\u2514\u2500" if is_last else "\u251c\u2500"
+                lines.append(f"{indent}{connector}   {branch} {sub}")
+
+        # Expand nested skill inline
+        if step.get("type") == "skill" and skill_data:
+            skill_name = step["skill"]
+            if skill_name in skill_data and skill_name not in expanding:
+                nested_indent = indent + connector + "   "
+                nested_expanding = expanding | {skill_name}
+                nested_sections = skill_data[skill_name]["sections"]
+                if nested_sections:
+                    for nested_section in nested_sections:
+                        lines.extend(
+                            render_section(
+                                nested_section,
+                                skill_data=skill_data,
+                                indent=nested_indent,
+                                expanding=nested_expanding,
+                            )
+                        )
+                else:
+                    # Skill has no structured steps; extract scripts from raw content
+                    raw_content = skill_data[skill_name]["content"]
+                    scripts = _extract_scripts(raw_content)
+                    for j, script in enumerate(scripts):
+                        is_last = j == len(scripts) - 1
+                        branch = "\u2514\u2500" if is_last else "\u251c\u2500"
+                        lines.append(f"{nested_indent}{branch} runs: {script}")
 
     # Loop close marker
     if has_loop:
@@ -460,7 +533,9 @@ def render_section(section: dict) -> list[str]:
     return lines
 
 
-def render_command(command_name: str, content: str) -> list[str]:
+def render_command(
+    command_name: str, content: str, skill_data: dict | None = None
+) -> list[str]:
     argument_hint = parse_argument_hint(content)
     header = f"/{command_name} {argument_hint}" if argument_hint else f"/{command_name}"
     lines = [header]
@@ -472,7 +547,7 @@ def render_command(command_name: str, content: str) -> list[str]:
         return lines
 
     for section in sections:
-        lines.extend(render_section(section))
+        lines.extend(render_section(section, skill_data=skill_data))
 
     lines.append("")
     return lines
@@ -481,8 +556,27 @@ def render_command(command_name: str, content: str) -> list[str]:
 # --- Output ---
 
 
+def load_all_skills() -> dict[str, dict]:
+    """Pre-load all skills for nested expansion during rendering."""
+    skill_data: dict[str, dict] = {}
+    if not SKILLS_DIR.exists():
+        return skill_data
+    for skill_dir in sorted(SKILLS_DIR.iterdir()):
+        skill_file = skill_dir / "SKILL.md"
+        if not skill_file.exists():
+            continue
+        content = skill_file.read_text()
+        skill_data[skill_dir.name] = {
+            "content": content,
+            "sections": extract_sections(content),
+            "argument_hint": parse_argument_hint(content),
+        }
+    return skill_data
+
+
 def generate_flow() -> str:
     agents = parse_agents()
+    skill_data = load_all_skills()
 
     output_lines = [
         "# Orchestration Flow",
@@ -498,16 +592,18 @@ def generate_flow() -> str:
             output_lines.append(f"- **{name}**: {description}")
         output_lines.append("")
 
-    output_lines.append("## Command Flows")
+    output_lines.append("## Skill Flows")
     output_lines.append("")
     output_lines.append("```")
 
     for command_name in ORCHESTRATOR_COMMANDS:
-        command_file = COMMANDS_DIR / f"{command_name}.md"
-        if not command_file.exists():
+        skill_file = SKILLS_DIR / command_name / "SKILL.md"
+        if not skill_file.exists():
             continue
-        content = command_file.read_text()
-        output_lines.extend(render_command(command_name, content))
+        content = skill_file.read_text()
+        output_lines.extend(
+            render_command(command_name, content, skill_data=skill_data)
+        )
 
     output_lines.append("```")
     output_lines.append("")
@@ -518,10 +614,10 @@ def generate_flow() -> str:
 def run_lint(known_agents: set[str]) -> list[LintWarning]:
     all_warnings: list[LintWarning] = []
     for command_name in ORCHESTRATOR_COMMANDS:
-        command_file = COMMANDS_DIR / f"{command_name}.md"
-        if not command_file.exists():
+        skill_file = SKILLS_DIR / command_name / "SKILL.md"
+        if not skill_file.exists():
             continue
-        content = command_file.read_text()
+        content = skill_file.read_text()
         all_warnings.extend(lint_command(command_name, content, known_agents))
     return all_warnings
 

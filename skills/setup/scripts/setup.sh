@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # DIY-Decomp Setup Script
-# Scaffolds the project (clone repo, install package, copy plugin files)
+# Scaffolds the project (clone repo, install package)
 # without creating a loop state file.
 
 set -euo pipefail
@@ -75,8 +75,7 @@ if [[ -z "$REPO_URL" ]]; then
   exit 1
 fi
 
-PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cd "$(dirname "$0")/.." && pwd)}"
-LOCAL_PLUGIN_DIR=".claude/plugins/slash-diy"
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 
 # Derive package name from URL if not explicitly provided
 if [[ -z "$PACKAGE_NAME" ]]; then
@@ -85,25 +84,23 @@ if [[ -z "$PACKAGE_NAME" ]]; then
 fi
 
 echo ""
-echo "━━━ Step 1/4: Copying plugin files ━━━"
-mkdir -p "$LOCAL_PLUGIN_DIR"
-for f in prepare.py run_tests.py rewrite_imports.py __init__.py pyproject.toml; do
-  cp "$PLUGIN_ROOT/$f" "$LOCAL_PLUGIN_DIR/"
-  echo "  → $LOCAL_PLUGIN_DIR/$f"
-done
-
-echo ""
-echo "━━━ Step 2/4: Scaffolding project root ━━━"
+echo "━━━ Step 1/3: Scaffolding project root ━━━"
 if [[ ! -f "pyproject.toml" ]]; then
-  cp "$LOCAL_PLUGIN_DIR/pyproject.toml" .
+  cp "$SCRIPT_DIR/template-pyproject.toml" pyproject.toml
   echo "  → ./pyproject.toml (created)"
 else
   echo "  → ./pyproject.toml (already exists, skipped)"
 fi
+if [[ ! -f ".gitignore" ]]; then
+  cp "$SCRIPT_DIR/template-.gitignore" .gitignore
+  echo "  → ./.gitignore (created)"
+else
+  echo "  → ./.gitignore (already exists, skipped)"
+fi
 DIY_PKG="diy_${PACKAGE_NAME//-/_}"
 if [[ ! -d "$DIY_PKG" ]]; then
   mkdir -p "$DIY_PKG/tests/generated" "$DIY_PKG/tests/discovered"
-  cp "$LOCAL_PLUGIN_DIR/__init__.py" "$DIY_PKG/__init__.py"
+  cp "$SCRIPT_DIR/template-__init__.py" "$DIY_PKG/__init__.py"
   echo "  → ./$DIY_PKG/__init__.py (created as package)"
   echo "  → ./$DIY_PKG/tests/{generated,discovered}/ (created)"
 else
@@ -111,16 +108,16 @@ else
 fi
 
 echo ""
-echo "━━━ Step 3/4: Cloning repo & copying reference to .slash_diy/ ━━━"
+echo "━━━ Step 2/3: Cloning repo & copying reference to .slash_diy/ ━━━"
 echo "  URL: $REPO_URL"
-uv run "$LOCAL_PLUGIN_DIR/prepare.py" --url "$REPO_URL"
+uv run "$SCRIPT_DIR/prepare.py" --url "$REPO_URL"
 if [[ $? -ne 0 ]]; then
   echo "❌ prepare.py failed" >&2
   exit 1
 fi
 
 echo ""
-echo "━━━ Step 4/4: Installing real library for test validation ━━━"
+echo "━━━ Step 3/3: Installing real library for test validation ━━━"
 echo "  Package: $PACKAGE_NAME"
 uv pip install "$PACKAGE_NAME"
 if [[ $? -ne 0 ]]; then
@@ -131,7 +128,7 @@ echo "  ✓ Installed $PACKAGE_NAME"
 
 echo ""
 cat <<EOF
-✅ Project scaffolded for diy-decomp!
+✅ Project scaffolded!
 
 Package: $PACKAGE_NAME
 Repository: $REPO_URL

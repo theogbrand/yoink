@@ -12,7 +12,7 @@ uv run ty check          # Type checking
 
 ### Orchestration Linter
 
-Command markdown files in `commands/` and agent files in `agents/` must follow conventions enforced by the orchestration linter. Run it after editing any command or agent file:
+Skill files in `skills/*/SKILL.md` and agent files in `agents/` must follow conventions enforced by the orchestration linter. Run it after editing any skill or agent file:
 
 ```bash
 uv run python scripts/orchestration-linter.py           # lint + print flow
@@ -30,7 +30,7 @@ The linter validates:
 | Conditionals | `- If **condition** then **action**.` | `- If **Keep** then **go back to step 1**.` |
 | Loop start | `**Begin loop.**` | `**Begin loop.** Repeat until the queue is empty.` |
 | Loop end | `**Loop back to step N.**` | `**Loop back to step 1.**` |
-| Scripts | `${CLAUDE_PLUGIN_ROOT}/` prefix | `uv run ${CLAUDE_PLUGIN_ROOT}/run_tests.py` |
+| Scripts | `${CLAUDE_PLUGIN_ROOT}/` or `${CLAUDE_SKILL_DIR}/` prefix | `uv run ${CLAUDE_SKILL_DIR}/scripts/rewrite_imports.py` |
 | Arguments | `argument-hint:` frontmatter | `argument-hint: "PROMPT --package PKG"` |
 
 `ORCHESTRATION_FLOW.md` is auto-generated and should not be edited manually. Always regenerate it with `--write` after making changes.

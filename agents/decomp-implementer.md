@@ -28,7 +28,7 @@ Your prompt will contain:
 1. Read current `diy_<PACKAGE>/` source files
 2. Study failing tests: `uv run pytest diy_<PACKAGE>/tests/generated/ -x --tb=short 2>&1`
 3. Implement changes in `diy_<PACKAGE>/`
-4. Run the test suite: `uv run ${CLAUDE_PLUGIN_ROOT}/run_tests.py`
+4. Run the test suite: `uv run ${CLAUDE_PLUGIN_ROOT}/scripts/run_tests.py`
 5. Repeat until all tests pass
 
 ## When Done
