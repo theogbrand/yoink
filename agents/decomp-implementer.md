@@ -6,37 +6,13 @@ tools: Read, Grep, Glob, Bash, Write, Edit
 
 # Decomposition Implementer
 
-a. Save the `### Decompose` context given from the orchestrator agent to a file:
-```bash
-cat > decomp_context.md << 'EVAL'
-<PASTE EVALUATION OUTPUT FROM STEP 2>
-EVAL
-```
+Read the file `.claude/inner-diy-loop.local.md` and follow the instructions to run an inner DIY loop until all tests pass or max iterations are reached.
 
-b. Generate the inner ralph prompt:
-```bash
-uv run inner_ralph.py generate-prompt \
-    --context decomp_context.md \
-    --top-package <PACKAGE> \
-    --sub-package <LIBRARY> \
-    --max-iterations 30
-```
-
-c. Follow the generated prompt from step (b) to run the inner ralph loop until all Level 0 tests pass or max iterations are reached.
-
-The inner ralph loop will:
-- Verify baseline tests pass with the real library
-- Rewrite imports to point at the DIY replacement
-- Iteratively build `diy_<LIBRARY>/` until all Level 0 tests pass
-- Commit each improvement and revert regressions
-
-d. After the subagent finishes, discover new external imports:
-```bash
-grep -rh "^from \|^import " diy_<PACKAGE>/ --include="*.py" | sort -u
-```
+Return the completion promise `<promise>DONE</promise>` ONLY when all tests pass, otherwise return the completion promise `<promise>MAX ITERATIONS REACHED</promise>`.
 
 ## Output Format
 
 Report back with:
+- **COMPLETION PROMISE:** <promise>DONE</promise> or <promise>MAX ITERATIONS REACHED</promise>
 - **What was done:** <summary of changes>
 - **New imports:** <list of external libraries that diy_<PACKAGE>/ now imports as a result>
