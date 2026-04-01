@@ -1,7 +1,7 @@
 #!/bin/bash
 
-# Ralph Loop Setup Script
-# Creates state file for in-session Ralph loop
+# DIY Loop Setup Script
+# Creates state file for in-session DIY loop
 
 set -euo pipefail
 
@@ -195,9 +195,7 @@ else
   COMPLETION_PROMISE_YAML="null"
 fi
 
-# Right now goes straight to ralph-loop based implementation without running run_tests.py 
-# later to integrate with recursive_decomposition.md, THEN run ralph-loop to grind on a dependency and test it until all tests pass
-cat > .claude/ralph-loop.local.md <<EOF
+cat > .claude/inner-diy-loop.local.md <<EOF
 ---
 active: true
 iteration: 1
@@ -221,7 +219,7 @@ The stop hook is now active. When you try to exit, the SAME PROMPT will be
 fed back to you. You'll see your previous work in files, creating a
 self-referential loop where you iteratively improve on the same task.
 
-To monitor: head -10 .claude/ralph-loop.local.md
+To monitor: head -10 .claude/inner-diy-loop.local.md
 
 ⚠️  WARNING: This loop cannot be stopped manually! It will run infinitely
     unless you set --max-iterations or --completion-promise.
@@ -239,7 +237,7 @@ fi
 if [[ "$COMPLETION_PROMISE" != "null" ]]; then
   echo ""
   echo "═══════════════════════════════════════════════════════════"
-  echo "CRITICAL - Ralph Loop Completion Promise"
+  echo "CRITICAL - DIY Loop Completion Promise"
   echo "═══════════════════════════════════════════════════════════"
   echo ""
   echo "To complete this loop, output this EXACT text:"
