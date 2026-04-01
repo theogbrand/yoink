@@ -91,6 +91,12 @@ if [[ ! -f "pyproject.toml" ]]; then
 else
   echo "  → ./pyproject.toml (already exists, skipped)"
 fi
+if [[ ! -f ".gitignore" ]]; then
+  cp "$SCRIPT_DIR/template-.gitignore" .gitignore
+  echo "  → ./.gitignore (created)"
+else
+  echo "  → ./.gitignore (already exists, skipped)"
+fi
 DIY_PKG="diy_${PACKAGE_NAME//-/_}"
 if [[ ! -d "$DIY_PKG" ]]; then
   mkdir -p "$DIY_PKG/tests/generated" "$DIY_PKG/tests/discovered"
