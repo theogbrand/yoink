@@ -138,7 +138,7 @@ if [[ "$ITER_LIMIT" -eq 0 ]]; then
   ITER_LIMIT=30
 fi
 
-PROMPT=$(uv run python "$PLUGIN_ROOT/inner_ralph.py" generate-prompt \
+PROMPT=$(uv run python "$PLUGIN_ROOT/skills/decompose/scripts/inner_ralph.py" generate-prompt \
   --context "$CONTEXT_FILE" \
   --top-package "$PACKAGE_NAME" \
   --sub-package "$SUB_PACKAGE_NAME" \
