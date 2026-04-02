@@ -25,11 +25,7 @@ Your goal is to build `diy_{sub_package}/` — a from-scratch replacement for `{
 
 ## Steps
 
-Repeat steps 1–4 until all tests pass or you hit the max iteration limit.
-
-```
-BEFORE=$(git rev-parse HEAD)
-```
+Repeat steps 1–3 until all tests pass or you hit the max iteration limit.
 
 ### 1. Plan
 
@@ -49,23 +45,11 @@ BEFORE=$(git rev-parse HEAD)
 Run the test suite and check score:
 
 ```
-uv run ${CLAUDE_PLUGIN_ROOT}/scripts/run_tests.py > run.log 2>&1
-grep "^score:\|^passed:\|^failed:" run.log
+uv run ${CLAUDE_PLUGIN_ROOT}/scripts/run_tests.py > .claude/decomp-implementer-loop/{sub_package}-iteration-<N>-run.log 2>&1
+grep "^score:" .claude/decomp-implementer-loop/{sub_package}-iteration-<N>-run.log >> .claude/decomp-implementer-loop/{sub_package}-scores.log
+grep -E "^(score|passed|failed):" .claude/decomp-implementer-loop/{sub_package}-iteration-<N>-run.log
 ```
 
-### 4. Commit or revert
-
-```
-git add diy_{sub_package}/
-git diff --cached --quiet && { echo "no changes — go back to step 1"; }
-git commit -m "decomp-implementer-loop-{sub_package}-iteration-<N>: <description of what was implemented/replaced>"
-```
-
-- If score **improved** → keep commit, append to results.tsv, go back to step 1.
-- If score **same or worse** → revert and go back to step 1:
-  ```
-  [[ "$(git rev-parse HEAD)" != "$BEFORE" ]] && git reset --hard "$BEFORE"
-  ```
 - If `score == 1.000000`, keep commit, then emit `<promise>DONE</promise>`.
 - If iteration-<N> == {max_iterations}, emit `<promise>MAX_ITERATIONS_REACHED</promise>`.
 
