@@ -28,7 +28,7 @@ Your goal is to build `diy_{sub_package}/` — a from-scratch replacement for `{
 Repeat steps 1–3 until all tests pass or you hit the max iteration limit.
 
 ### 1. Plan
-
+- List `.claude/decomp-implementer-loop/{sub_package}-iteration-*-run.log` and find the highest existing N. You are now on iteration N+1 — use that number as `<N>` for this cycle's log files.
 - Read current `diy_{sub_package}/` source files
 - Study the failing tests to understand what's needed:
   ```
