@@ -53,6 +53,7 @@ FOREVER:
 - Never modify `diy_{top_package}/`, test files, or `.slash_diy/`
 - 300-second timeout per test run
 - Cannot install new packages beyond what's in `pyproject.toml`
+- **Allowed imports:** stdlib and the acceptable sub-dependencies listed above. Do not import anything else
 - Study the reference implementation before writing code
 
 ## Recording Results
