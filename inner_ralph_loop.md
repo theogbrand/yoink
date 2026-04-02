@@ -65,7 +65,15 @@ echo -e "$(git rev-parse --short HEAD)\t${score}\t${passed}\t${failed}\t${total}
 
 ## Tips
 
-- Run `pytest -x --tb=short` to stop at first failure — fix one thing at a time
 - Read the failing test carefully before looking at the reference
 - Many tests share underlying functions — fixing one often fixes many
 - Keep `diy_{sub_package}/` organized: one submodule per logical area
+
+## Plateau Detection
+
+If score hasn't improved in 3 consecutive iterations:
+
+1. Run all tests WITHOUT `-x` to see every remaining failure
+2. Read `results.tsv` to confirm the stall pattern
+3. Step back and ask: are the remaining failures hitting a shared root cause?
+4. Consider a different approach — restructure `diy_{sub_package}/`, revisit an assumption from recon, or study a different part of the reference
