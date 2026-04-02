@@ -26,7 +26,7 @@ expectations, but free from the dependency chain that came with it.
 mkdir ../litellm-lite
 cp ./examples/litellm-sample.md ../litellm-lite/
 cd ../litellm-lite
-claude --plugin-dir ../slash-diy
+claude --plugin-dir ../slash-diy/plugins/slash-diy
 ```
 
 ```bash
