@@ -4,6 +4,18 @@
   "description": "A plugin to clone packages from SDKs you don't quite trust",
   "author": {
     "name": "ob1",
-    "email": "b@ob1.info"
-  }
+    "email": "b@ob1.info",
+    "url": "https://github.com/theogbrand"
+  },
+  "homepage": "https://github.com/theogbrand/slash-diy",
+  "repository": "https://github.com/theogbrand/slash-diy",
+  "license": "MIT",
+  "keywords": [
+    "sdk",
+    "vendoring",
+    "decomposition",
+    "code-generation",
+    "testing",
+    "supply-chain-security"
+  ]
 }
