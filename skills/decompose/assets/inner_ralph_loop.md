@@ -67,11 +67,11 @@ git commit -m "decomp-implementer-loop-{sub_package}-iteration-<N>: <description
   [[ "$(git rev-parse HEAD)" != "$BEFORE" ]] && git reset --hard "$BEFORE"
   ```
 - If `score == 1.000000`, keep commit, then emit `<promise>DONE</promise>`.
-- If iteration-<N> == {max_iterations}, emit `<promise>MAX ITERATIONS REACHED</promise>`.
+- If iteration-<N> == {max_iterations}, emit `<promise>MAX_ITERATIONS_REACHED</promise>`.
 
 ---
 
 **CRITICAL: After committing your final passing state, you MUST emit a completion signal. Do NOT exit the loop silently.**
 
 - `<promise>DONE</promise>` — emit **only** when all tests pass completely and unequivocally. Do not output false promises to escape the loop, even if you feel stuck or think you should exit for other reasons. The loop is designed to continue until genuine completion.
-- `<promise>MAX ITERATIONS REACHED</promise>` — emit if you hit the max iteration limit without full test passage.
+- `<promise>MAX_ITERATIONS_REACHED</promise>` — emit if you hit the max iteration limit without full test passage.

@@ -40,6 +40,9 @@ Rules:
   OL016  Agent Input/Output parameter not in standard format
   OL017  Missing required frontmatter field (name, description)
   OL018  Malformed YAML frontmatter
+  OL019  SKILL.md exceeds 500 lines (progressive disclosure)
+  OL020  Non-executable file in scripts/ (only .py, .sh, .js allowed)
+  OL021  Non-documentation file in references/ (only .md allowed)
 
 Usage:
   python scripts/orchestration-linter.py                # lint + print flow
@@ -118,6 +121,9 @@ class LintRule(StrEnum):
     AGENT_PARAM_FORMAT = "OL016"
     FRONTMATTER_MISSING_FIELD = "OL017"
     FRONTMATTER_MALFORMED = "OL018"
+    SKILL_TOO_LONG = "OL019"
+    NON_EXECUTABLE_IN_SCRIPTS = "OL020"
+    NON_DOCS_IN_REFERENCES = "OL021"
 
 
 @dataclass
@@ -499,6 +505,64 @@ def lint_script_existence(
                             f"(resolved to {resolved.relative_to(REPO_ROOT)})",
                         )
                     )
+    return warnings
+
+
+EXECUTABLE_EXTENSIONS = {".py", ".sh", ".js"}
+SKILL_MD_MAX_LINES = 500
+
+
+def lint_skill_directory(skill_dir: Path) -> list[LintWarning]:
+    """OL019/OL020/OL021/OL022: Check skill directory structure per progressive disclosure spec."""
+    warnings: list[LintWarning] = []
+    skill_name = skill_dir.name
+    filename = f"skills/{skill_name}/SKILL.md"
+
+    # OL019: SKILL.md should be under 500 lines
+    skill_file = skill_dir / "SKILL.md"
+    if skill_file.exists():
+        line_count = len(skill_file.read_text().splitlines())
+        if line_count > SKILL_MD_MAX_LINES:
+            warnings.append(
+                LintWarning(
+                    LintRule.SKILL_TOO_LONG,
+                    filename,
+                    1,
+                    f"SKILL.md is {line_count} lines (max {SKILL_MD_MAX_LINES}). "
+                    "Move detailed reference material to references/ or assets/",
+                )
+            )
+
+    # OL020: scripts/ should only contain executable files
+    scripts_dir = skill_dir / "scripts"
+    if scripts_dir.exists():
+        for file_path in sorted(scripts_dir.rglob("*")):
+            if file_path.is_file() and file_path.suffix not in EXECUTABLE_EXTENSIONS:
+                warnings.append(
+                    LintWarning(
+                        LintRule.NON_EXECUTABLE_IN_SCRIPTS,
+                        f"skills/{skill_name}/scripts/{file_path.name}",
+                        1,
+                        "Non-executable file in scripts/. "
+                        "Move to assets/ (templates/resources) or references/ (documentation)",
+                    )
+                )
+
+    # OL021: references/ should only contain documentation (.md)
+    references_dir = skill_dir / "references"
+    if references_dir.exists():
+        for file_path in sorted(references_dir.rglob("*")):
+            if file_path.is_file() and file_path.suffix != ".md":
+                warnings.append(
+                    LintWarning(
+                        LintRule.NON_DOCS_IN_REFERENCES,
+                        f"skills/{skill_name}/references/{file_path.name}",
+                        1,
+                        "Non-documentation file in references/. "
+                        "Only .md files belong here. Move to assets/ or scripts/",
+                    )
+                )
+
     return warnings
 
 
@@ -1093,6 +1157,7 @@ def run_lint(known_agents: set[str]) -> list[LintWarning]:
             continue
         content = skill_file.read_text()
         all_warnings.extend(lint_command(command_name, content, known_agents))
+        all_warnings.extend(lint_skill_directory(skill_file.parent))
     # Lint agent files
     if AGENTS_DIR.exists():
         for agent_file in sorted(AGENTS_DIR.glob("*.md")):

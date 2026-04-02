@@ -76,6 +76,7 @@ if [[ -z "$REPO_URL" ]]; then
 fi
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+ASSETS_DIR="$(cd "$(dirname "$0")/../assets" && pwd)"
 
 # Derive package name from URL if not explicitly provided
 if [[ -z "$PACKAGE_NAME" ]]; then
@@ -86,13 +87,13 @@ fi
 echo ""
 echo "━━━ Step 1/3: Scaffolding project root ━━━"
 if [[ ! -f "pyproject.toml" ]]; then
-  cp "$SCRIPT_DIR/template-pyproject.toml" pyproject.toml
+  cp "$ASSETS_DIR/template-pyproject.toml" pyproject.toml
   echo "  → ./pyproject.toml (created)"
 else
   echo "  → ./pyproject.toml (already exists, skipped)"
 fi
 if [[ ! -f ".gitignore" ]]; then
-  cp "$SCRIPT_DIR/template-.gitignore" .gitignore
+  cp "$ASSETS_DIR/template-.gitignore" .gitignore
   echo "  → ./.gitignore (created)"
 else
   echo "  → ./.gitignore (already exists, skipped)"
@@ -100,7 +101,7 @@ fi
 DIY_PKG="diy_${PACKAGE_NAME//-/_}"
 if [[ ! -d "$DIY_PKG" ]]; then
   mkdir -p "$DIY_PKG/tests/generated" "$DIY_PKG/tests/discovered"
-  cp "$SCRIPT_DIR/template-__init__.py" "$DIY_PKG/__init__.py"
+  cp "$ASSETS_DIR/template-__init__.py" "$DIY_PKG/__init__.py"
   echo "  → ./$DIY_PKG/__init__.py (created as package)"
   echo "  → ./$DIY_PKG/tests/{generated,discovered}/ (created)"
 else

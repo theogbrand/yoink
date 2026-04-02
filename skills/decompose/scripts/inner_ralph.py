@@ -12,7 +12,7 @@ import re
 from pathlib import Path
 
 
-TEMPLATE_FILE = Path(__file__).parent / "inner_ralph_loop.md"
+TEMPLATE_FILE = Path(__file__).parent.parent / "assets" / "inner_ralph_loop.md"
 
 # Fields recognized by the markdown parser (lowercase label → dict key).
 _FIELD_HEADERS = {
@@ -45,7 +45,9 @@ def _parse_markdown_context(text: str) -> dict:
 
             if matched_key == "functions_to_replace":
                 if value:  # comma-separated on same line
-                    ctx["functions_to_replace"] = [i.strip() for i in value.split(",") if i.strip()]
+                    ctx["functions_to_replace"] = [
+                        i.strip() for i in value.split(",") if i.strip()
+                    ]
                 else:  # bullet list follows
                     ctx["functions_to_replace"] = []
                     collecting = "functions_to_replace"
@@ -54,7 +56,8 @@ def _parse_markdown_context(text: str) -> dict:
                 if value and not value.lower().startswith("none"):
                     ctx["acceptable_sub_dependencies"] = [
                         re.sub(r"\s*\(.*?\)", "", i).strip()
-                        for i in value.split(",") if i.strip()
+                        for i in value.split(",")
+                        if i.strip()
                     ]
                 else:
                     ctx["acceptable_sub_dependencies"] = []
@@ -94,9 +97,15 @@ def generate_prompt(args):
         "sub_package": sub_pkg,
         "category": ctx.get("category", "Unknown"),
         "strategy": ctx.get("strategy", "Study reference and reimplement"),
-        "functions_to_replace": ", ".join(ctx.get("functions_to_replace", [])) or "none identified",
-        "reference_material": ctx.get("reference_material", f".slash_diy/reference/{sub_pkg}/"),
-        "acceptable_sub_dependencies": ", ".join(ctx.get("acceptable_sub_dependencies", [])) or "none",
+        "functions_to_replace": ", ".join(ctx.get("functions_to_replace", []))
+        or "none identified",
+        "reference_material": ctx.get(
+            "reference_material", f".slash_diy/reference/{sub_pkg}/"
+        ),
+        "acceptable_sub_dependencies": ", ".join(
+            ctx.get("acceptable_sub_dependencies", [])
+        )
+        or "none",
         "max_iterations": str(args.max_iterations),
     }
 
@@ -128,7 +137,9 @@ def rewrite_sub_imports(args):
             f.write_text(new_content)
             count += 1
 
-    print(f"Rewrote imports in {count} files ({sub_pkg} -> {target}) within {target_dir}/")
+    print(
+        f"Rewrote imports in {count} files ({sub_pkg} -> {target}) within {target_dir}/"
+    )
 
 
 def main():
@@ -136,14 +147,24 @@ def main():
     sub = parser.add_subparsers(dest="command")
 
     gp = sub.add_parser("generate-prompt", help="Generate inner ralph loop prompt")
-    gp.add_argument("--context", required=True, help="Path to decomposition context (JSON or markdown)")
+    gp.add_argument(
+        "--context",
+        required=True,
+        help="Path to decomposition context (JSON or markdown)",
+    )
     gp.add_argument("--top-package", required=True, help="Top-level package name")
     gp.add_argument("--sub-package", required=True, help="Sub-package to build")
-    gp.add_argument("--max-iterations", type=int, default=30, help="Max loop iterations")
+    gp.add_argument(
+        "--max-iterations", type=int, default=30, help="Max loop iterations"
+    )
 
-    rw = sub.add_parser("rewrite-sub-imports", help="Rewrite sub-package imports in source")
+    rw = sub.add_parser(
+        "rewrite-sub-imports", help="Rewrite sub-package imports in source"
+    )
     rw.add_argument("--sub-package", required=True, help="Sub-package to rewrite")
-    rw.add_argument("--target-dir", required=True, help="Directory to rewrite imports in")
+    rw.add_argument(
+        "--target-dir", required=True, help="Directory to rewrite imports in"
+    )
 
     args = parser.parse_args()
     if args.command == "generate-prompt":

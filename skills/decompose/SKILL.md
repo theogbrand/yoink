@@ -44,8 +44,8 @@ Pass it the library name and the diy package name (e.g., `diy_litellm`).
 ### 3. Implement & Validate
 
 a. Save the **decomp-evaluator** output from step 2 to `.claude/decomp_context.md`. The file must
-contain the evaluator's full Decompose decision (Decision, Reasoning, Category, Strategy,
-Functions to replace, Reference material, Acceptable sub-dependencies).
+contain the evaluator's full Decompose decision (**decision**, **reasoning**, **category**, **strategy**,
+**functions_to_replace**, **reference_material**, **acceptable_sub_dependencies**).
 
 b. Pre-flight Checks
 
@@ -88,13 +88,13 @@ c. Execute this setup script to initialize the prompt for the **decomp-implement
 
 d. Use the **decomp-implementer** agent to implement the sub-package.
 
-You MUST only move to step 4 when you have recieved the COMPLETION PROMISE (<promise>DONE</promise>) from the **decomp-implementer** agent. If a **decomp-implementer** agent exits but does not return you the completion promise (<promise>DONE</promise>), spin up a new **decomp-implementer** agent to continue the task.
+You MUST only move to step 4 when you have received **completion_promise** = `DONE` from the **decomp-implementer** agent. If a **decomp-implementer** agent exits without returning `DONE`, spin up a new **decomp-implementer** agent to continue the task.
 
-If the **decomp-implementer** agent returns the completion promise `<promise>MAX ITERATIONS REACHED</promise>`, stop the loop and report back to the user that the maximum number of iterations has been reached.
+If the **decomp-implementer** agent returns **completion_promise** = `MAX_ITERATIONS_REACHED`, stop the loop and report back to the user that the maximum number of iterations has been reached.
 
 ### 4. Enqueue new dependencies
 
-Using the "New imports" from the implementer's report, enqueue external libraries that `diy_<PACKAGE>/` now depends on:
+Using **new_imports** from the implementer's output, enqueue external libraries that `diy_<PACKAGE>/` now depends on:
 
 ```bash
 uv run python ${CLAUDE_SKILL_DIR}/scripts/decomp.py enqueue <lib1> <lib2> ...
