@@ -52,7 +52,7 @@ Repeat steps 1–3 until all tests pass or you hit the max iteration limit.
 Run the test suite and check score:
 
 ```
-uv run ${CLAUDE_PLUGIN_ROOT}/scripts/run_tests.py > .claude/decomp-implementer-loop/{sub_package}-iteration-<N>-run.log 2>&1
+uv run ${CLAUDE_PLUGIN_ROOT}/scripts/run_tests.py --project-dir . > .claude/decomp-implementer-loop/{sub_package}-iteration-<N>-run.log 2>&1
 grep "^score:" .claude/decomp-implementer-loop/{sub_package}-iteration-<N>-run.log >> .claude/decomp-implementer-loop/{sub_package}-scores.log
 grep -E "^(score|passed|failed):" .claude/decomp-implementer-loop/{sub_package}-iteration-<N>-run.log
 ```

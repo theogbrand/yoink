@@ -4,30 +4,37 @@ Run the extracted test suite against diy_<package>/ and compute score.
 Auto-detects the test directory by looking for diy_*/tests/.
 
 Usage:
-    uv run run_tests.py > run.log 2>&1
+    uv run run_tests.py --project-dir /path/to/project > run.log 2>&1
     grep "^score:" run.log
 """
 
+import argparse
 import re
 import subprocess
 import sys
 from pathlib import Path
 
 
-def find_test_dir() -> str:
-    for d in sorted(Path().glob("diy_*/tests/generated")):
+def find_test_dir(project_dir: Path) -> str:
+    for d in sorted(project_dir.glob("diy_*/tests/generated")):
         if d.is_dir():
             return str(d)
-    return "tests"
+    return str(project_dir / "tests")
 
 
 def main() -> None:
-    test_dir = find_test_dir()
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--project-dir", type=Path, default=Path.cwd())
+    args = parser.parse_args()
+    project_dir = args.project_dir.resolve()
+
+    test_dir = find_test_dir(project_dir)
     result = subprocess.run(
         [sys.executable, "-m", "pytest", test_dir, "-v", "--tb=short"],
         capture_output=True,
         text=True,
         timeout=300,
+        cwd=project_dir,
     )
 
     output = result.stdout + result.stderr

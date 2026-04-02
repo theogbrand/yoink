@@ -70,7 +70,7 @@ uv run ${CLAUDE_SKILL_DIR}/scripts/rewrite_imports.py --package <PACKAGE>
 Run the test suite against the empty `diy_<package>/` to confirm tests fail:
 
 ```bash
-uv run ${CLAUDE_PLUGIN_ROOT}/scripts/run_tests.py > run.log 2>&1
+uv run ${CLAUDE_PLUGIN_ROOT}/scripts/run_tests.py --project-dir . > run.log 2>&1
 grep "^score:" run.log
 ```
 
