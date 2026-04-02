@@ -40,11 +40,11 @@ def main():
     passed = failed = errors = 0
     for line in output.splitlines():
         stripped = line.strip()
-        if stripped.endswith(" PASSED"):
+        if " PASSED" in stripped:
             passed += 1
-        elif stripped.endswith(" FAILED"):
+        elif " FAILED" in stripped:
             failed += 1
-        elif stripped.endswith(" ERROR"):
+        elif " ERROR" in stripped:
             errors += 1
 
     # Also count collection errors (files that couldn't even be imported)
