@@ -21,7 +21,7 @@ echo "$HOOK_INPUT" | jq -c --arg input "$AGENT_INPUT" \
 
 # If this is the decomp-evaluator agent, write its output to .claude/decomp_context.md
 AGENT_TYPE=$(echo "$HOOK_INPUT" | jq -r '.agent_type')
-if [[ "$AGENT_TYPE" == "decomp-evaluator" ]]; then
+if [[ "$AGENT_TYPE" == "decomp-evaluator" || "$AGENT_TYPE" == *":decomp-evaluator" ]]; then
   mkdir -p .claude
   echo "$HOOK_INPUT" | jq -r '.last_assistant_message' > .claude/decomp_context.md
 fi

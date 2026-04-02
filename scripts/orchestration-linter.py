@@ -21,28 +21,38 @@ Validates these conventions in agents/*.md:
   Input:          ## Input section with - **snake_case_key**: description parameters
   Output:         ## Output section with - **snake_case_key**: description parameters
 
-Rules:
-  OL001  Step header format (### N. not ## Step N)
-  OL002  Agent not found in agents/
-  OL003  Skill not found in skills/
-  OL004  Conditional uses -> instead of 'then'
-  OL005  Conditional has bold 'If' keyword
-  OL006  Conditional missing bold condition/action
-  OL007  Non-sequential step numbering
-  OL008  Hardcoded .claude/plugins/ path
-  OL009  Bare scripts/ path without variable prefix
-  OL010  Unpaired loop markers
-  OL011  Loop back target mismatch
-  OL012  Script file not found on disk
-  OL013  Step header missing title
-  OL014  Agent missing ## Input section
-  OL015  Agent missing ## Output section
-  OL016  Agent Input/Output parameter not in standard format
-  OL017  Missing required frontmatter field (name, description)
-  OL018  Malformed YAML frontmatter
-  OL019  SKILL.md exceeds 500 lines (progressive disclosure)
-  OL020  Non-executable file in scripts/ (only .py, .sh, .js allowed)
-  OL021  Non-documentation file in references/ (only .md allowed)
+Rules (grouped by domain):
+
+  Structure (OL1xx):
+  OL101  Step header format (### N. not ## Step N)
+  OL102  Non-sequential step numbering
+  OL103  Step header missing title
+  OL104  SKILL.md exceeds 500 lines (progressive disclosure)
+  OL105  Unpaired loop markers
+  OL106  Loop back target mismatch
+
+  References (OL2xx):
+  OL201  Agent not found in agents/
+  OL202  Skill not found in skills/
+  OL203  Script file not found on disk
+
+  Conventions (OL3xx):
+  OL301  Conditional uses -> instead of 'then'
+  OL302  Conditional has bold 'If' keyword
+  OL303  Conditional missing bold condition/action
+  OL304  Hardcoded .claude/plugins/ path
+  OL305  Bare scripts/ path without variable prefix
+
+  Schema (OL4xx):
+  OL401  Missing required frontmatter field (name, description)
+  OL402  Malformed YAML frontmatter
+  OL403  Agent missing ## Input section
+  OL404  Agent missing ## Output section
+  OL405  Agent Input/Output parameter not in standard format
+
+  Directory (OL5xx):
+  OL501  Non-executable file in scripts/ (only .py, .sh, .js allowed)
+  OL502  Non-documentation file in references/ (only .md allowed)
 
 Usage:
   python scripts/orchestration-linter.py                # lint + print flow
@@ -103,27 +113,32 @@ DetailKind = Literal["agent", "runs", "conditional"]
 
 
 class LintRule(StrEnum):
-    STEP_HEADER_FORMAT = "OL001"
-    AGENT_NOT_FOUND = "OL002"
-    SKILL_NOT_FOUND = "OL003"
-    CONDITIONAL_ARROW = "OL004"
-    CONDITIONAL_BOLD_IF = "OL005"
-    CONDITIONAL_UNBOLDED = "OL006"
-    STEP_NUMBERING = "OL007"
-    HARDCODED_PATH = "OL008"
-    BARE_SCRIPT_PATH = "OL009"
-    UNPAIRED_LOOP = "OL010"
-    LOOP_TARGET_MISMATCH = "OL011"
-    SCRIPT_NOT_FOUND = "OL012"
-    STEP_MISSING_TITLE = "OL013"
-    AGENT_MISSING_INPUT = "OL014"
-    AGENT_MISSING_OUTPUT = "OL015"
-    AGENT_PARAM_FORMAT = "OL016"
-    FRONTMATTER_MISSING_FIELD = "OL017"
-    FRONTMATTER_MALFORMED = "OL018"
-    SKILL_TOO_LONG = "OL019"
-    NON_EXECUTABLE_IN_SCRIPTS = "OL020"
-    NON_DOCS_IN_REFERENCES = "OL021"
+    # Structure (OL1xx)
+    STEP_HEADER_FORMAT = "OL101"
+    STEP_NUMBERING = "OL102"
+    STEP_MISSING_TITLE = "OL103"
+    SKILL_TOO_LONG = "OL104"
+    UNPAIRED_LOOP = "OL105"
+    LOOP_TARGET_MISMATCH = "OL106"
+    # References (OL2xx)
+    AGENT_NOT_FOUND = "OL201"
+    SKILL_NOT_FOUND = "OL202"
+    SCRIPT_NOT_FOUND = "OL203"
+    # Conventions (OL3xx)
+    CONDITIONAL_ARROW = "OL301"
+    CONDITIONAL_BOLD_IF = "OL302"
+    CONDITIONAL_UNBOLDED = "OL303"
+    HARDCODED_PATH = "OL304"
+    BARE_SCRIPT_PATH = "OL305"
+    # Schema (OL4xx)
+    FRONTMATTER_MISSING_FIELD = "OL401"
+    FRONTMATTER_MALFORMED = "OL402"
+    AGENT_MISSING_INPUT = "OL403"
+    AGENT_MISSING_OUTPUT = "OL404"
+    AGENT_PARAM_FORMAT = "OL405"
+    # Directory (OL5xx)
+    NON_EXECUTABLE_IN_SCRIPTS = "OL501"
+    NON_DOCS_IN_REFERENCES = "OL502"
 
 
 @dataclass
@@ -187,6 +202,14 @@ class AgentData:
     output_keys: list[str]
 
 
+@dataclass
+class LineRule:
+    rule: LintRule
+    pattern: re.Pattern[str]
+    message: str
+    exclude: re.Pattern[str] | None = None
+
+
 # Convention: - **snake_case_key**: Description
 AGENT_PARAM_PATTERN = re.compile(r"^[-*]\s+\*\*(\w+)\*\*:\s+\S", re.MULTILINE)
 
@@ -199,7 +222,7 @@ def parse_frontmatter(
     """Parse YAML frontmatter from a markdown file.
 
     Returns (parsed_dict, warnings). When filename is provided, malformed
-    frontmatter produces an OL018 warning instead of silently returning {}.
+    frontmatter produces an OL402 warning instead of silently returning {}.
     """
     match = FRONTMATTER_PATTERN.match(content)
     if not match:
@@ -316,7 +339,7 @@ def _resolve_script_path(path_var: str, script_path: str, command_name: str) -> 
 def lint_frontmatter(
     filename: str, frontmatter: dict[str, Any], required_fields: list[str]
 ) -> list[LintWarning]:
-    """OL017: Check that required frontmatter fields are present."""
+    """OL401: Check that required frontmatter fields are present."""
     warnings: list[LintWarning] = []
     for field_name in required_fields:
         if field_name not in frontmatter:
@@ -331,79 +354,72 @@ def lint_frontmatter(
     return warnings
 
 
-def lint_conditionals(filename: str, lines: list[str]) -> list[LintWarning]:
-    """OL004/OL005/OL006: Check conditional syntax."""
+LINE_RULES: list[LineRule] = [
+    # Structure
+    LineRule(
+        LintRule.STEP_HEADER_FORMAT,
+        re.compile(r"^##\s+Step\s+\d"),
+        "Use '### N. Title' for steps, not '## Step N'.",
+    ),
+    LineRule(
+        LintRule.STEP_MISSING_TITLE,
+        re.compile(r"^###\s+\d+\.\s*$"),
+        "Step is missing a title. Convention: '### N. Descriptive title'.",
+    ),
+    # Conventions
+    LineRule(
+        LintRule.CONDITIONAL_ARROW,
+        re.compile(r"^[-*]\s+If\s+\*\*.+\*\*\s*(?:\u2192|->)"),
+        "Use 'then' instead of '->'. Convention: '- If **condition** then **action**'.",
+    ),
+    LineRule(
+        LintRule.CONDITIONAL_BOLD_IF,
+        re.compile(r"^[-*]\s+\*\*If\s+"),
+        "'If' should not be bold. Convention: '- If **condition** then **action**'.",
+    ),
+    LineRule(
+        LintRule.CONDITIONAL_UNBOLDED,
+        re.compile(r"^[-*]\s+[Ii]f\s+"),
+        "Condition and action must be bold. Convention: '- If **condition** then **action**'.",
+        exclude=CONDITIONAL_PATTERN,
+    ),
+    LineRule(
+        LintRule.HARDCODED_PATH,
+        re.compile(r"\.claude/plugins/slash-diy/\S+\.(py|sh)"),
+        "Use ${CLAUDE_PLUGIN_ROOT}/ or ${CLAUDE_SKILL_DIR}/ instead of hardcoded plugin path.",
+    ),
+    LineRule(
+        LintRule.BARE_SCRIPT_PATH,
+        re.compile(
+            r"(?<!\{CLAUDE_PLUGIN_ROOT\}/)(?<!\{CLAUDE_SKILL_DIR\}/)scripts/\S+\.(py|sh)"
+        ),
+        "Plugin scripts should use ${CLAUDE_PLUGIN_ROOT}/scripts/ or ${CLAUDE_SKILL_DIR}/scripts/, "
+        "not bare 'scripts/' paths.",
+        exclude=re.compile(r"\$\{CLAUDE_(?:PLUGIN_ROOT|SKILL_DIR)\}/scripts/"),
+    ),
+]
+
+
+def lint_line_rules(filename: str, lines: list[str]) -> list[LintWarning]:
+    """Apply all declarative single-line lint rules."""
     warnings: list[LintWarning] = []
     for i, line in enumerate(lines, 1):
         stripped = line.strip()
-        # OL004: Old convention: -> instead of then
-        if re.match(r"^[-*]\s+If\s+\*\*.+\*\*\s*(?:\u2192|->)", stripped):
-            warnings.append(
-                LintWarning(
-                    LintRule.CONDITIONAL_ARROW,
-                    filename,
-                    i,
-                    "Use 'then' instead of '->'. "
-                    f"Convention: '- If **condition** then **action**'. Found: {stripped}",
+        for rule in LINE_RULES:
+            if rule.pattern.search(stripped):
+                if rule.exclude and rule.exclude.search(stripped):
+                    continue
+                warnings.append(
+                    LintWarning(
+                        rule.rule, filename, i, f"{rule.message} Found: {stripped}"
+                    )
                 )
-            )
-        # OL005: Bold wrapping the "If" keyword
-        if re.match(r"^[-*]\s+\*\*If\s+", stripped):
-            warnings.append(
-                LintWarning(
-                    LintRule.CONDITIONAL_BOLD_IF,
-                    filename,
-                    i,
-                    "'If' should not be bold. "
-                    f"Convention: '- If **condition** then **action**'. Found: {stripped}",
-                )
-            )
-        # OL006: Bullet starts with "If" but doesn't use the bold conditional pattern
-        if re.match(r"^[-*]\s+[Ii]f\s+", stripped) and not CONDITIONAL_PATTERN.search(
-            stripped
-        ):
-            warnings.append(
-                LintWarning(
-                    LintRule.CONDITIONAL_UNBOLDED,
-                    filename,
-                    i,
-                    "Condition and action must be bold. "
-                    f"Convention: '- If **condition** then **action**'. Found: {stripped}",
-                )
-            )
     return warnings
 
 
-def lint_steps(filename: str, lines: list[str]) -> list[LintWarning]:
-    """OL001/OL007/OL013: Check step header format, numbering, and titles."""
+def lint_step_numbering(filename: str, lines: list[str]) -> list[LintWarning]:
+    """OL102: Check step numbering is sequential within each section."""
     warnings: list[LintWarning] = []
-
-    # OL001: Steps should use ### N. format, not ## Step N
-    # OL013: Steps must have a title after the number
-    for i, line in enumerate(lines, 1):
-        if re.match(r"^##\s+Step\s+\d", line):
-            warnings.append(
-                LintWarning(
-                    LintRule.STEP_HEADER_FORMAT,
-                    filename,
-                    i,
-                    f"Use '### N. Title' for steps, not '## Step N'. "
-                    f"Found: {line.strip()}",
-                )
-            )
-        step_title_match = re.match(r"^###\s+(\d+)\.(.*)$", line)
-        if step_title_match and not step_title_match.group(2).strip():
-            warnings.append(
-                LintWarning(
-                    LintRule.STEP_MISSING_TITLE,
-                    filename,
-                    i,
-                    f"Step {step_title_match.group(1)} is missing a title. "
-                    f"Convention: '### N. Descriptive title'",
-                )
-            )
-
-    # OL007: Step numbering should be sequential within each section
     section_steps: list[int] = []
     current_section_start = 0
     for i, line in enumerate(lines, 1):
@@ -419,42 +435,6 @@ def lint_steps(filename: str, lines: list[str]) -> list[LintWarning]:
     warnings.extend(
         _check_step_sequence(filename, section_steps, current_section_start)
     )
-
-    return warnings
-
-
-def lint_script_paths(filename: str, lines: list[str]) -> list[LintWarning]:
-    """OL008/OL009: Check script path conventions."""
-    warnings: list[LintWarning] = []
-    for i, line in enumerate(lines, 1):
-        # OL008: Hardcoded .claude/plugins/ paths
-        if re.search(r"\.claude/plugins/slash-diy/\S+\.(py|sh)", line):
-            warnings.append(
-                LintWarning(
-                    LintRule.HARDCODED_PATH,
-                    filename,
-                    i,
-                    "Use ${CLAUDE_PLUGIN_ROOT}/ or ${CLAUDE_SKILL_DIR}/ instead of hardcoded plugin path. "
-                    f"Found: {line.strip()}",
-                )
-            )
-        # OL009: Bare relative scripts/ paths
-        if re.search(
-            r"(?<!\{CLAUDE_PLUGIN_ROOT\}/)(?<!\{CLAUDE_SKILL_DIR\}/)scripts/\S+\.(py|sh)",
-            line,
-        ) and (
-            "${CLAUDE_PLUGIN_ROOT}/scripts/" not in line
-            and "${CLAUDE_SKILL_DIR}/scripts/" not in line
-        ):
-            warnings.append(
-                LintWarning(
-                    LintRule.BARE_SCRIPT_PATH,
-                    filename,
-                    i,
-                    "Plugin scripts should use ${CLAUDE_PLUGIN_ROOT}/scripts/ or ${CLAUDE_SKILL_DIR}/scripts/, "
-                    f"not bare 'scripts/' paths. Found: {line.strip()}",
-                )
-            )
     return warnings
 
 
@@ -464,7 +444,7 @@ def lint_script_existence(
     body: str,
     command_name: str | None = None,
 ) -> list[LintWarning]:
-    """OL012: Check that referenced script files exist on disk.
+    """OL203: Check that referenced script files exist on disk.
 
     When command_name is provided (skill context), both CLAUDE_PLUGIN_ROOT and
     CLAUDE_SKILL_DIR are resolved. When None (agent context), only
@@ -510,12 +490,12 @@ SKILL_MD_MAX_LINES = 500
 
 
 def lint_skill_directory(skill_dir: Path) -> list[LintWarning]:
-    """OL019/OL020/OL021/OL022: Check skill directory structure per progressive disclosure spec."""
+    """OL104/OL501/OL502: Check skill directory structure per progressive disclosure spec."""
     warnings: list[LintWarning] = []
     skill_name = skill_dir.name
     filename = f"skills/{skill_name}/SKILL.md"
 
-    # OL019: SKILL.md should be under 500 lines
+    # OL104: SKILL.md should be under 500 lines
     skill_file = skill_dir / "SKILL.md"
     if skill_file.exists():
         line_count = len(skill_file.read_text().splitlines())
@@ -530,7 +510,7 @@ def lint_skill_directory(skill_dir: Path) -> list[LintWarning]:
                 )
             )
 
-    # OL020: scripts/ should only contain executable files
+    # OL501: scripts/ should only contain executable files
     scripts_dir = skill_dir / "scripts"
     if scripts_dir.exists():
         for file_path in sorted(scripts_dir.rglob("*")):
@@ -545,7 +525,7 @@ def lint_skill_directory(skill_dir: Path) -> list[LintWarning]:
                     )
                 )
 
-    # OL021: references/ should only contain documentation (.md)
+    # OL502: references/ should only contain documentation (.md)
     references_dir = skill_dir / "references"
     if references_dir.exists():
         for file_path in sorted(references_dir.rglob("*")):
@@ -577,13 +557,16 @@ def lint_command(
     warnings.extend(fm_warnings)
     body = _strip_frontmatter(content)
 
-    # OL017: Required frontmatter fields
+    # OL401: Required frontmatter fields
     warnings.extend(lint_frontmatter(filename, frontmatter, ["name", "description"]))
 
-    # OL001/OL007/OL013: Step format, numbering, and titles
-    warnings.extend(lint_steps(filename, lines))
+    # Declarative single-line rules (OL101, OL103, OL301-OL305)
+    warnings.extend(lint_line_rules(filename, lines))
 
-    # OL002: Agent references must point to known agents
+    # OL102: Step numbering
+    warnings.extend(lint_step_numbering(filename, lines))
+
+    # OL201: Agent references must point to known agents
     for match in AGENT_PATTERN.finditer(body):
         agent_name = match.group(1)
         if agent_name not in known_agents:
@@ -600,7 +583,7 @@ def lint_command(
                 )
             )
 
-    # OL003: Skill invocations must point to existing skills
+    # OL202: Skill invocations must point to existing skills
     for match in SKILL_INVOKE_PATTERN.finditer(body):
         skill_name = match.group(1)
         skill_file = SKILLS_DIR / skill_name / "SKILL.md"
@@ -618,17 +601,11 @@ def lint_command(
                 )
             )
 
-    # OL004/OL005/OL006: Conditional syntax checks
-    warnings.extend(lint_conditionals(filename, lines))
-
-    # OL008/OL009: Script path convention checks
-    warnings.extend(lint_script_paths(filename, lines))
-
-    # OL010/OL011: Loop marker checks
+    # OL105/OL106: Loop marker checks
     begin_loops = list(BEGIN_LOOP_PATTERN.finditer(body))
     loop_backs = list(LOOP_BACK_PATTERN.finditer(body))
 
-    # OL010: Loop markers must be paired
+    # OL105: Loop markers must be paired
     if len(begin_loops) != len(loop_backs):
         for i, line in enumerate(lines, 1):
             if "**Begin loop.**" in line or "**Loop back to step" in line:
@@ -644,7 +621,7 @@ def lint_command(
                 )
                 break
 
-    # OL011: Loop back target must match the first step after Begin loop
+    # OL106: Loop back target must match the first step after Begin loop
     for begin, back in zip(begin_loops, loop_backs, strict=False):
         first_step_after = STEP_HEADER_PATTERN.search(body, begin.end())
         if first_step_after:
@@ -669,7 +646,7 @@ def lint_command(
                     )
                 )
 
-    # OL012: Script files must exist on disk
+    # OL203: Script files must exist on disk
     warnings.extend(lint_script_existence(filename, lines, body, command_name))
 
     return warnings
@@ -704,26 +681,23 @@ def lint_agent(agent_file: Path) -> list[LintWarning]:
     frontmatter, fm_warnings = parse_frontmatter(content, filename)
     warnings.extend(fm_warnings)
 
-    # OL017: Required frontmatter fields
+    # OL401: Required frontmatter fields
     warnings.extend(lint_frontmatter(filename, frontmatter, ["name", "description"]))
 
-    # OL001/OL007/OL013: Step format, numbering, and titles
-    warnings.extend(lint_steps(filename, lines))
+    # Declarative single-line rules (OL101, OL103, OL301-OL305)
+    warnings.extend(lint_line_rules(filename, lines))
 
-    # OL004/OL005/OL006: Conditional syntax checks
-    warnings.extend(lint_conditionals(filename, lines))
+    # OL102: Step numbering
+    warnings.extend(lint_step_numbering(filename, lines))
 
-    # OL008/OL009: Script path convention checks
-    warnings.extend(lint_script_paths(filename, lines))
-
-    # OL012: Script files must exist on disk (agent context — no skill dir)
+    # OL203: Script files must exist on disk (agent context — no skill dir)
     body = _strip_frontmatter(content)
     warnings.extend(lint_script_existence(filename, lines, body))
 
     input_text = _extract_section_text(content, "Input")
     output_text = _extract_section_text(content, "Output")
 
-    # OL014: Agent must have ## Input section
+    # OL403: Agent must have ## Input section
     if input_text is None:
         warnings.append(
             LintWarning(
@@ -734,7 +708,7 @@ def lint_agent(agent_file: Path) -> list[LintWarning]:
             )
         )
 
-    # OL015: Agent must have ## Output section
+    # OL404: Agent must have ## Output section
     if output_text is None:
         warnings.append(
             LintWarning(
@@ -745,7 +719,7 @@ def lint_agent(agent_file: Path) -> list[LintWarning]:
             )
         )
 
-    # OL016: Parameters in Input/Output must use - **snake_case_key**: description
+    # OL405: Parameters in Input/Output must use - **snake_case_key**: description
     for section_name, section_text in [("Input", input_text), ("Output", output_text)]:
         if section_text is None:
             continue

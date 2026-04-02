@@ -25,7 +25,7 @@ uv run python scripts/orchestration-linter.py           # lint + print flow
 uv run python scripts/orchestration-linter.py --write    # lint + update ORCHESTRATION_FLOW.md
 ```
 
-Run without flags to see the full list of rules (OL001–OL017) and the current orchestration flow. `ORCHESTRATION_FLOW.md` is auto-generated and should not be edited manually — always regenerate it with `--write` after making changes.
+Run without flags to see the full list of rules (OL1xx–OL5xx, grouped by domain) and the current orchestration flow. `ORCHESTRATION_FLOW.md` is auto-generated and should not be edited manually — always regenerate it with `--write` after making changes.
 
 ## Code Style & Philosophy
 
