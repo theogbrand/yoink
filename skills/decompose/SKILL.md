@@ -44,13 +44,11 @@ Pass it the library name and the diy package name (e.g., `diy_litellm`).
 - If **Keep** then **go back to step 1**.
 - If **Decompose** then **continue to step 3** with the evaluation output.
 
-### 3. Implement & Validate
-
-a. Pre-flight Checks
+### 3. Prepare the sub-package for the implementer agent
 
 Complete these steps IN ORDER before entering the loop.
 
-#### 1. Verify baseline
+#### a. Verify baseline
 
 Run Level 0 tests with the REAL `{sub_package}` still installed:
 
@@ -60,7 +58,7 @@ uv run pytest diy_{top_package}/tests/ -v --tb=short 2>&1
 
 **All tests MUST pass.** If any fail, STOP — the baseline is broken and must be fixed before proceeding.
 
-#### 2. Rewrite imports
+#### b. Rewrite imports
 
 Swap `{sub_package}` imports in `diy_{top_package}/` source code to point at `diy_{sub_package}`:
 
@@ -68,22 +66,22 @@ Swap `{sub_package}` imports in `diy_{top_package}/` source code to point at `di
 uv run inner_ralph.py rewrite-sub-imports --sub-package {sub_package} --target-dir diy_{top_package}
 ```
 
-#### 3. Scaffold the sub-package
+#### c. Scaffold the sub-package
 
 ```bash
 mkdir -p diy_{sub_package}
 touch diy_{sub_package}/__init__.py
 ```
 
-#### 4. Seed & populate state body
+#### d. Seed & populate state body
 
-a. Seed the state file with placeholder values:
+Seed the state file with placeholder values:
 
 ```bash
 "${CLAUDE_PLUGIN_ROOT}/scripts/activate-inner-diy-loop.sh" --max-iterations 10
 ```
 
-b. Read `.claude/decomp_context.md` and fill in the `PLACEHOLDER` values in `.claude/inner-diy-loop.local.md`:
+#### e. Read `.claude/decomp_context.md` and fill in the `PLACEHOLDER` values in `.claude/inner-diy-loop.local.md`:
 
 | Field | Where to get the value |
 |---|---|
@@ -95,13 +93,15 @@ b. Read `.claude/decomp_context.md` and fill in the `PLACEHOLDER` values in `.cl
 | reference_material | from decomp_context, default: `.slash_diy/reference/{sub_package}/` |
 | acceptable_sub_dependencies | comma-separated list from decomp_context, or `none` |
 
-c. Use the **decomp-implementer** agent to implement the sub-package.
+### 4. Implement & Validate
+
+Use the **decomp-implementer** agent to implement the sub-package.
 
 You MUST only move to step 4 when you have received **completion_promise** = `DONE` from the **decomp-implementer** agent. If a **decomp-implementer** agent exits without returning `DONE`, spin up a new **decomp-implementer** agent to continue the task.
 
 If the **decomp-implementer** agent returns **completion_promise** = `MAX_ITERATIONS_REACHED`, stop the loop and report back to the user that the maximum number of iterations has been reached.
 
-### 4. Enqueue new dependencies
+### 5. Enqueue new dependencies
 
 Using **new_imports** from the implementer's output, enqueue external libraries that `diy_<PACKAGE>/` now depends on:
 
