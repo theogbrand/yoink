@@ -8,8 +8,8 @@ tools: Read, Grep, Glob, Bash, Write, Edit
 
 Read the file `.claude/inner-diy-loop.local.md` and follow its instructions.
 
-## Output Format
+## Output
 
 - **COMPLETION PROMISE:** <promise>DONE</promise> or <promise>MAX ITERATIONS REACHED</promise>
-- **What was done:** <summary of changes>
-- **New imports:** <list of external libraries that diy_<PACKAGE>/ now imports as a result>
+- **what_was_done**: Summary of changes
+- **new_imports**: List of external libraries that diy_<PACKAGE>/ now imports as a result

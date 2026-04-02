@@ -1,5 +1,5 @@
 {
-  "description": "Ralph Wiggum plugin stop hook for self-referential loops",
+  "description": "Plugin-level hooks for slash-diy",
   "hooks": {
     "Stop": [
       {
@@ -7,6 +7,26 @@
           {
             "type": "command",
             "command": "${CLAUDE_PLUGIN_ROOT}/hooks/stop-hook.sh"
+          }
+        ]
+      }
+    ],
+    "SubagentStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/subagent-start-hook.sh"
+          }
+        ]
+      }
+    ],
+    "SubagentStop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/subagent-stop-hook.sh"
           }
         ]
       }

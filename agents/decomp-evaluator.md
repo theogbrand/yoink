@@ -12,13 +12,12 @@ Evaluate a single dependency: **keep** or **decompose one layer down**.
 
 ## Input
 
-Your prompt will contain:
-- **Library name**: the dependency to evaluate
-- **Package name**: the diy package that uses it (e.g., `diy_litellm`)
+- **library_name**: The dependency to evaluate
+- **package_name**: The diy package that uses it (e.g., `diy_litellm`)
 
----
+## Steps
 
-## Step 1: Assess Usage
+### 1. Assess usage
 
 Inspect `diy_<PACKAGE>/` for how the library is actually used:
 - Which files import it, which functions/classes are called
@@ -30,27 +29,25 @@ Inspect `diy_<PACKAGE>/` for how the library is actually used:
 - Complex functions OR deep integration -> expensive, only replace if critical
 - Using one function from a large library -> easy to extract
 
----
+### 2. Evaluate
 
-## Step 2: Evaluate
+#### Foundational Primitives
 
-### Foundational Primitives — Keep by default
-
-These are the low-level layer that decomposition targets. Keep unless there is an unusual project-specific reason to avoid them.
+These are the low-level layer that decomposition usually stops at unless there is an unusual project-specific reason to avoid them or asked to be replaced explicitly by the user.
 
 | Domain | Libraries | Why keep |
 |---|---|---|
 | Networking & Web | `httpx`, `websockets`, `FastAPI`, `Starlette`, `uvicorn` | They ARE the HTTP layer; replacement means raw sockets |
-| Validation & Serialization | `pydantic` v2, `orjson` | Non-trivial coercion/validation logic; C/Rust-accelerated JSON |
+| Validation & Serialization | `pydantic` v2, `orjson`, `PyYAML` | Non-trivial coercion/validation logic; C/Rust-accelerated JSON; battle-tested YAML parser |
 | Database & State | `SQLAlchemy` v2 core, `psycopg` v3, `asyncpg`, `valkey-py` | Wire protocol implementations + connection management. Prefer `valkey-py` over `redis-py` |
 | Security & Crypto | `cryptography`, `PyJWT` | OpenSSL C bindings; subtle algorithm/timing concerns |
 | Observability & Config | `structlog`, `opentelemetry-api`, `pydantic-settings` | Cross-cutting infrastructure; no supply-chain benefit to replacing |
 | Image Processing | `Pillow` | C-accelerated codec for dozens of formats |
 | gRPC & Protobuf | `grpcio`, `protobuf` | Google-maintained binary wire protocol + codegen via C bindings |
 
-### Replacement Signals — Consider replacing
+#### Replacement Signals
 
-These are indicators, not automatic verdicts. Weigh against Step 1 findings and the primitives list above.
+These are indicators, not automatic verdicts. Weigh against step 1 findings and the primitives list above.
 
 | Pattern | Signal | Typical strategy |
 |---|---|---|
@@ -59,18 +56,37 @@ These are indicators, not automatic verdicts. Weigh against Step 1 findings and 
 | **Trivial utilities** (lodash-equivalents, date helpers) | Inlineable with stdlib | Pure helper functions |
 | **Deep dep trees** (> 3 transitive deps) | Supply-chain surface area | Extract and reimplement core logic |
 
-### Unfamiliar Libraries
+#### Unfamiliar Libraries
 
-If a library doesn't clearly fit either list:
+For libraries that don't clearly fit either list, reason from first principles about what makes something a foundational primitive versus a replaceable layer.
 
-1. Implements a complex protocol (HTTP/2, crypto, XML) and well-governed? -> **keep**
-2. Bridges to C/Rust for performance or safety? -> **likely keep**
-3. Solo-maintained, no 2FA, stale commits? -> **consider replacing**
-4. Core functionality < 200 LOC with stdlib/httpx? -> **consider replacing**
+**What makes a foundational primitive:**
 
----
+- Implements a wire protocol, binary format, or spec-driven standard (HTTP/2, WebSocket, protobuf, XML parsing) — reimplementing means tracking an evolving spec
+- Bridges to C/Rust/system libraries for correctness or performance (crypto, image codecs, compression) — the binding IS the value
+- Well-governed: multiple maintainers, 2FA enforced, regular releases, security audit history
+- Used broadly across the ecosystem — battle-tested edge cases you'd rediscover painfully
+- Replacement would require reimplementing > 500 LOC of non-trivial logic
 
-## Step 3: Classify (if decomposing)
+**What makes a replaceable layer:**
+
+- Wraps another library's API with convenience methods — the underlying library does the real work
+- Primary value is DX (nicer syntax, auto-retry, config merging) rather than correctness-critical logic
+- Solo-maintained, no 2FA, stale commits, or unclear governance
+- Heavy transitive dependency tree (> 3 deps) for functionality you use narrowly
+- Core functionality you actually use is < 200 LOC with stdlib or a kept primitive
+- Acts as a compatibility shim across providers — you only use one provider
+
+**Grey areas — lean toward keeping:**
+
+- Library is well-governed but you're unsure about complexity -> keep, revisit later
+- Library has C bindings but you only use a pure-Python subset -> still keep, the binding signals non-trivial domain
+- Library is large but you use it pervasively -> replacing is expensive and risky, keep unless supply-chain concern is acute
+
+### 3. Classify
+
+- If **decision is Decompose** then **classify the library and continue**.
+- If **decision is Keep** then **skip this step**.
 
 | Category | Next layer down | Reference material |
 |---|---|---|
@@ -79,23 +95,14 @@ If a library doesn't clearly fit either list:
 | **Utilities** (`lodash`, `zod`) | Stdlib or inlined implementations | Library source code |
 | **Frameworks** (`express`, `django`, `axum`) | Rarely decomposed; full swap instead | — |
 
----
-
 ## Output
 
-### Keep:
-```
-**Decision:** Keep
-**Reasoning:** <concise explanation>
-```
+- **decision**: "Keep" or "Decompose"
+- **reasoning**: Concise explanation of the verdict
 
-### Decompose:
-```
-**Decision:** Decompose
-**Reasoning:** <concise explanation>
-**Category:** <API wrapper | orchestration layer | utility | framework>
-**Strategy:** <what to replace it with>
-**Functions to replace:** <specific functions/classes used by diy_<PACKAGE>/>
-**Reference material:** <API docs URL or library source path>
-**Acceptable sub-dependencies:** <what lower-level deps are OK to introduce>
-```
+If **Decompose**, also include:
+- **category**: API wrapper | orchestration layer | utility | framework
+- **strategy**: What to replace it with
+- **functions_to_replace**: Specific functions/classes used by diy_<PACKAGE>/
+- **reference_material**: API docs URL or library source path
+- **acceptable_sub_dependencies**: What lower-level deps are OK to introduce

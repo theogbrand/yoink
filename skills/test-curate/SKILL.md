@@ -1,10 +1,12 @@
 ---
-description: "Phase 0: Generate and discover tests, validate against real library"
+name: test-curate
+description: "Phase 0: Generate and discover tests, validate against real library. Only invoke when explicitly requested by the user or by the diy-decomp orchestrator."
 argument-hint: "PROMPT --package PACKAGE_NAME"
-disable-model-invocation: true
 ---
 
 # Test Curate
+
+> **Do not invoke this skill unless explicitly requested.** It is called by `/diy-decomp` or run standalone by the user.
 
 **Prerequisite:** `/setup` must have been run first (reference dir and real library must exist).
 
@@ -18,6 +20,8 @@ Parse your prompt to identify:
 ---
 
 ### 1. Discover relevant tests
+
+- If **`--skip-discovery` is present** then **skip to step 2**.
 
 Use the **test-discoverer** agent to search for relevant tests from the original library's test suite.
 
@@ -58,7 +62,7 @@ Test validation results:
 After validation passes, rewrite imports in generated tests so they target `diy_<package>/`:
 
 ```bash
-uv run ${CLAUDE_PLUGIN_ROOT}/rewrite_imports.py --package <PACKAGE>
+uv run ${CLAUDE_SKILL_DIR}/scripts/rewrite_imports.py --package <PACKAGE>
 ```
 
 ### 5. Sanity check
@@ -66,7 +70,7 @@ uv run ${CLAUDE_PLUGIN_ROOT}/rewrite_imports.py --package <PACKAGE>
 Run the test suite against the empty `diy_<package>/` to confirm tests fail:
 
 ```bash
-uv run ${CLAUDE_PLUGIN_ROOT}/run_tests.py > run.log 2>&1
+uv run ${CLAUDE_PLUGIN_ROOT}/scripts/run_tests.py > run.log 2>&1
 grep "^score:" run.log
 ```
 

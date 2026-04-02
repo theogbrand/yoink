@@ -1,0 +1,21 @@
+#!/bin/bash
+
+# Subagent Stop Hook
+# Logs subagent stop events with input/output to .claude/slash-diy-subagent.log
+
+set -euo pipefail
+
+# Read hook input from stdin
+HOOK_INPUT=$(cat)
+
+LOG_FILE=".claude/slash-diy-subagent.log"
+
+# Extract the first user message from the transcript as the agent's input prompt
+TRANSCRIPT_PATH=$(echo "$HOOK_INPUT" | jq -r '.agent_transcript_path')
+AGENT_INPUT=$(head -n1 "$TRANSCRIPT_PATH" | jq -r '.message.content')
+
+echo "$HOOK_INPUT" | jq -c --arg input "$AGENT_INPUT" \
+  '{ts: now | todate, event: "STOP", agent_type, agent_id, input: $input, output: .last_assistant_message}' \
+  >> "$LOG_FILE"
+
+exit 0
