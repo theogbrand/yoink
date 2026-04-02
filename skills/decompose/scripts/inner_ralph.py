@@ -87,8 +87,8 @@ def generate_state_body(args: argparse.Namespace) -> None:
     except json.JSONDecodeError:
         ctx = _parse_markdown_context(raw)
 
-    sub_pkg = args.sub_package.replace("-", "_")
-    top_pkg = args.top_package.replace("-", "_")
+    sub_pkg = args.sub_package
+    top_pkg = args.top_package
 
     variables = {
         "top_package": top_pkg,
@@ -114,7 +114,7 @@ def generate_state_body(args: argparse.Namespace) -> None:
 
 
 def rewrite_sub_imports(args: argparse.Namespace) -> None:
-    sub_pkg = args.sub_package.replace("-", "_")
+    sub_pkg = args.sub_package
     target = f"diy_{sub_pkg}"
     target_dir = Path(args.target_dir)
 
@@ -168,6 +168,13 @@ def main() -> None:
     )
 
     args = parser.parse_args()
+
+    # Normalize package names: hyphens → underscores, strip accidental diy_ prefix
+    # (the templates/code add diy_ themselves, so args must be the bare name)
+    for attr in ("sub_package", "top_package"):
+        if hasattr(args, attr):
+            setattr(args, attr, getattr(args, attr).replace("-", "_").removeprefix("diy_"))
+
     if args.command == "generate-state-body":
         generate_state_body(args)
     elif args.command == "rewrite-sub-imports":
