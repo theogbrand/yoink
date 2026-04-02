@@ -138,13 +138,11 @@ if [[ "$ITER_LIMIT" -eq 0 ]]; then
   ITER_LIMIT=30
 fi
 
-STATE_BODY=$(uv run python "$PLUGIN_ROOT/skills/decompose/scripts/inner_ralph.py" generate-state-body \
+if ! STATE_BODY=$(uv run python "$PLUGIN_ROOT/skills/decompose/scripts/inner_ralph.py" generate-state-body \
   --context "$CONTEXT_FILE" \
   --top-package "$PACKAGE_NAME" \
   --sub-package "$SUB_PACKAGE_NAME" \
-  --max-iterations "$ITER_LIMIT")
-
-if [[ $? -ne 0 ]] || [[ -z "$STATE_BODY" ]]; then
+  --max-iterations "$ITER_LIMIT") || [[ -z "$STATE_BODY" ]]; then
   echo "❌ Error: Failed to generate state body from context" >&2
   exit 1
 fi
@@ -175,7 +173,7 @@ cat <<EOF
 🔄 DIY loop activated in this session!
 
 Iteration: 1
-Max iterations: $(if [[ $MAX_ITERATIONS -gt 0 ]]; then echo $MAX_ITERATIONS; else echo "unlimited"; fi)
+Max iterations: $(if [[ $MAX_ITERATIONS -gt 0 ]]; then echo "$MAX_ITERATIONS"; else echo "unlimited"; fi)
 Completion promise: DONE (ONLY output when TRUE - do not lie!)
 
 The stop hook is now active. When you try to exit, the SAME PROMPT will be

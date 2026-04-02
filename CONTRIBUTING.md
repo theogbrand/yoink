@@ -10,6 +10,12 @@ uv run ruff format       # Code formatting
 uv run ty check          # Type checking
 ```
 
+### Shell
+
+```bash
+fd -e sh --exec shellcheck  # Linting
+```
+
 ### Orchestration Linter
 
 Skill files in `skills/*/SKILL.md` and agent files in `agents/` must follow conventions enforced by the orchestration linter. Run it after editing any skill or agent file:

@@ -111,8 +111,7 @@ fi
 echo ""
 echo "━━━ Step 2/3: Cloning repo & copying reference to .slash_diy/ ━━━"
 echo "  URL: $REPO_URL"
-uv run "$SCRIPT_DIR/prepare.py" --url "$REPO_URL"
-if [[ $? -ne 0 ]]; then
+if ! uv run "$SCRIPT_DIR/prepare.py" --url "$REPO_URL"; then
   echo "❌ prepare.py failed" >&2
   exit 1
 fi
@@ -120,8 +119,7 @@ fi
 echo ""
 echo "━━━ Step 3/3: Installing real library for test validation ━━━"
 echo "  Package: $PACKAGE_NAME"
-uv pip install "$PACKAGE_NAME"
-if [[ $? -ne 0 ]]; then
+if ! uv pip install "$PACKAGE_NAME"; then
   echo "❌ Failed to install $PACKAGE_NAME" >&2
   exit 1
 fi
