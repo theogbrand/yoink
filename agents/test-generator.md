@@ -1,7 +1,7 @@
 ---
 name: test-generator
 description: "Generate focused pytest tests for a target function by studying reference implementation. Use during test curation (phase 0) after test discovery."
-tools: Read, Grep, Glob, Write
+tools: Read, Grep, Glob, Write, Bash
 ---
 
 # Test Generator
@@ -40,11 +40,21 @@ Read `diy_<PACKAGE>/tests/discovered/` (if it exists) to understand testing patt
 
 ### 3. Write tests
 
-Write comprehensive pytest tests to `diy_<PACKAGE>/tests/generated/test_<function>.py` covering:
+Write comprehensive pytest tests to `diy_<PACKAGE>/tests/generated/gen_test_<function>.py` covering:
 - Happy path with typical inputs
 - Edge cases (empty inputs, None, boundary conditions)
 - Error handling (invalid inputs, expected exceptions)
 - Common real-world usage patterns
+
+### 4. Lint and format
+
+Before finishing, fix all lint and type errors:
+
+```bash
+uv run ruff check --fix diy_<PACKAGE>/tests/generated/
+uv run ruff format diy_<PACKAGE>/tests/generated/
+uv run ty check diy_<PACKAGE>/tests/generated/
+```
 
 ## Output
 

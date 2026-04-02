@@ -119,7 +119,7 @@ fi
 echo ""
 echo "━━━ Step 3/3: Installing real library for test validation ━━━"
 echo "  Package: $PACKAGE_NAME"
-if ! uv pip install "$PACKAGE_NAME"; then
+if ! uv add "$PACKAGE_NAME"; then
   echo "❌ Failed to install $PACKAGE_NAME" >&2
   exit 1
 fi

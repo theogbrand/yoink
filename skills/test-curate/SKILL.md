@@ -37,7 +37,7 @@ Pass it the package name and target function.
 
 ### 3. Validate tests against the real library
 
-Run the generated tests against the pip-installed real library:
+Run the generated tests against the installed real library:
 
 ```bash
 uv run pytest diy_<PACKAGE>/tests/generated/ -v --tb=short 2>&1

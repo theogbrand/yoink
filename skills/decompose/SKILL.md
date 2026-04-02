@@ -30,7 +30,10 @@ Then run the decomposition loop below until the queue is empty.
 uv run python ${CLAUDE_SKILL_DIR}/scripts/decomp.py dequeue
 ```
 
-- If **queue is empty** then **stop, decomposition complete**.
+- If **queue is empty** then **decomposition complete, remove the real library and stop**.
+  ```bash
+  uv remove <PACKAGE>
+  ```
 
 ### 2. Evaluate
 
