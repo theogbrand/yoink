@@ -102,7 +102,7 @@ Phase 3: Dependency decomposition. Seeds the queue with the target package and i
 ## When to use this?
 
 **What is this good for?**
-- Replacing small-to-medium utility packages with zero-dependency local code
+- Replacing small-to-medium utility packages with internal replacements
 - Packages with unclear maintenance or security posture
 - Reducing supply chain attack surface
 - Cases where you only need a subset of a package's features

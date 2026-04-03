@@ -2,7 +2,7 @@
 
 ## Overview
 
-Yoink is an AI agent, built as a Claude Code plugin, that decomposes third-party dependencies into local, zero-dependency replacements. It clones a target library's source, curates tests from it, then iteratively replaces each dependency with a minimal local implementation -- verified against the original's test expectations.
+Yoink is an AI agent, built as a Claude Code plugin, that decomposes third-party dependencies into internal replacements. It clones a target library's source, curates tests from it, then iteratively replaces each dependency with a minimal local implementation -- verified against the original's test expectations.
 
 The pipeline runs in three sequential phases: **Setup (Phase 1)**, **Test Curation (Phase 2)**, and **Decomposition (Phase 3)**.
 

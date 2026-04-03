@@ -5,7 +5,7 @@
     "email": "b@ob1.info"
   },
   "metadata": {
-    "description": "Marketplace for yoink — decompose third-party packages into local, dependency-free replacements"
+    "description": "Marketplace for yoink — decompose third-party packages into internal replacements"
   },
   "plugins": [
     {
