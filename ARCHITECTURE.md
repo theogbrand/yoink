@@ -73,7 +73,7 @@ scripts/
 
 ### Phase 1: Setup
 
-`/setup --url <github_url>`
+`/yoink:setup --url <github_url>`
 
 1. Clone the target repository to `.yoink/reference/<PACKAGE>/`
 2. Scaffold `yoink_<PACKAGE>/` with `__init__.py` and test directories
@@ -82,30 +82,33 @@ scripts/
 
 ### Phase 2: Test Curation
 
-`/curate-tests "<prompt>" --package <pkg>`
+`/yoink:curate-tests "<prompt>" --package <pkg>`
 
-1. **test-discoverer** agent searches `.yoink/reference/` for existing tests relevant to the user's prompt
-2. **test-generator** agent studies the reference implementation and writes comprehensive pytest tests
-3. Run tests against the **real library** -- expect score ~1.0 (all pass). Delete any failing tests (flaky, network-dependent, etc.)
-4. `rewrite_imports.py` rewrites all test imports from `<PACKAGE>` to `yoink_<PACKAGE>`
-5. Run tests against the **empty yoink package** -- expect score ~0.0 (confirming tests are real fixtures, not no-ops)
+1. **yoink:test-discoverer** agent searches `.yoink/reference/` for existing tests relevant to the user's prompt
+2. **yoink:test-generator** agent studies the reference implementation and writes comprehensive pytest tests
+3. Run only the **generated tests** against the **real library** -- expect score ~1.0 (all pass). If generated tests fail, investigate and fix them before proceeding
+4. Discovered tests remain reference material only; they are not executed as part of validation
+5. `rewrite_imports.py` rewrites generated test imports from `<PACKAGE>` to `yoink_<PACKAGE>`
+6. Run tests against the **empty yoink package** -- expect score ~0.0 (confirming tests exercise real behavior rather than no-op scaffolding)
 
 ### Phase 3: Decomposition
 
-`/decompose --package <pkg>`
+`/yoink:decompose --package <pkg>`
 
 A queue-driven loop that processes one dependency per iteration:
 
 1. **Seed** the queue with the target package's imports via `decomp.py enqueue`
 2. **Dequeue** the next dependency
-3. **decomp-evaluator** agent decides: **Keep** (foundational primitive like httpx, pydantic, cryptography) or **Decompose** (can be replaced locally)
+3. **yoink:decomp-evaluator** agent decides: **Keep** (foundational primitive like httpx, pydantic, cryptography) or **Decompose** (can be replaced locally)
 4. If **Keep**: skip, go to step 2
 5. If **Decompose**:
-   a. Rewrite imports in `yoink_<PACKAGE>` to reference `yoink_<SUB_PACKAGE>`
-   b. Scaffold `yoink_<SUB_PACKAGE>/`
-   c. Launch **decomp-implementer** agent in a Ralph Loop (iterative implementation loop)
-   d. Agent implements until tests pass (score = 1.0) or max iterations reached
-   e. Enqueue any new dependencies discovered during implementation
+   a. Verify the current top-level yoink package still passes its generated tests before decomposition proceeds
+   b. Rewrite imports in `yoink_<PACKAGE>` to reference `yoink_<SUB_PACKAGE>`
+   c. Scaffold `yoink_<SUB_PACKAGE>/`
+   d. Seed `.claude/inner-yoink-loop.local.md` with the evaluator output and loop metadata
+   e. Launch **yoink:decomp-implementer** in a Ralph Loop (iterative implementation loop)
+   f. If the implementer returns `DONE`, continue; if it returns `MAX_ITERATIONS_REACHED`, stop and report; if it exits without `DONE`, restart it to continue the same task
+   g. Enqueue any new dependencies discovered during implementation
 6. Repeat until queue is empty
 
 ## Component Roles
@@ -116,10 +119,10 @@ Skills are the user-facing entry points. Each skill's `SKILL.md` defines its int
 
 | Skill | Purpose |
 |-------|---------|
-| `/yoink` | Full pipeline orchestrator (setup + curate-tests + decompose) |
-| `/setup` | Project scaffolding |
-| `/curate-tests` | Test discovery and generation |
-| `/decompose` | Dependency decomposition loop |
+| `/yoink:yoink` | Full pipeline orchestrator (setup + curate-tests + decompose) |
+| `/yoink:setup` | Project scaffolding |
+| `/yoink:curate-tests` | Test discovery and generation |
+| `/yoink:decompose` | Dependency decomposition loop |
 
 ### Agents
 
@@ -127,10 +130,10 @@ Agents are Claude instances invoked by skills for tasks requiring reasoning. Eac
 
 | Agent | Phase | Decision |
 |-------|-------|----------|
-| test-discoverer | 2 | Find relevant tests in reference suite |
-| test-generator | 2 | Generate pytest tests from reference implementation |
-| decomp-evaluator | 3 | Keep vs. Decompose a dependency |
-| decomp-implementer | 3 | Implement a local replacement for a dependency |
+| yoink:test-discoverer | 2 | Find relevant tests in reference suite |
+| yoink:test-generator | 2 | Generate pytest tests from reference implementation |
+| yoink:decomp-evaluator | 3 | Keep vs. Decompose a dependency |
+| yoink:decomp-implementer | 3 | Implement a local replacement for a dependency |
 
 ### Scripts
 
@@ -164,7 +167,7 @@ Dependencies are tracked in `.claude/decomp-queue.json` as a FIFO queue. Each de
 
 ### Ralph Loop
 
-The inner implementation loop uses a stop hook (`stop-hook.sh`) to intercept session exit attempts. When the hook detects an active loop, it feeds the last assistant message back as input, effectively creating an iterative plan-implement-validate cycle. Loop state is tracked in `.claude/inner-yoink-loop.local.md` with YAML frontmatter (`iteration`, `max_iterations`, `completion_promise`). The agent signals completion by emitting `<promise>DONE</promise>` or `<promise>MAX_ITERATIONS_REACHED</promise>`.
+The inner implementation loop uses a stop hook (`stop-hook.sh`) to intercept session exit attempts. When the hook detects an active loop, it feeds the last assistant message back as input, effectively creating an iterative plan-implement-validate cycle. Loop state is tracked in `.claude/inner-yoink-loop.local.md` with YAML frontmatter (`iteration`, `max_iterations`, `completion_promise`). The implementer signals completion by emitting `<promise>DONE</promise>` or `<promise>MAX_ITERATIONS_REACHED</promise>`, and the outer decomposition skill treats any exit without `DONE` as a reason to relaunch the implementer and continue.
 
 ### Import Rewriting
 
@@ -180,3 +183,7 @@ Not everything gets decomposed. The decomp-evaluator agent categorizes dependenc
 ### Test-Driven Validation
 
 All progress is measured by a single metric: test pass rate. `run_tests.py` computes `score = passed / (passed + failed + error)`. The decomposition loop continues until score reaches 1.0 or max iterations are exhausted. This ensures replacements are functionally equivalent to the originals.
+
+### Orchestration As Source Of Truth
+
+`ARCHITECTURE.md` describes the system at a conceptual level, but the exact orchestration behavior is defined by the skill markdown and validated by `scripts/orchestration-linter.py`. For the current executable flow, including nested substeps and agent I/O signatures, prefer `ORCHESTRATION_FLOW.md`.

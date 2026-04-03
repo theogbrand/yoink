@@ -101,7 +101,7 @@ fi
 YOINK_PKG="yoink_${PACKAGE_NAME//-/_}"
 if [[ ! -d "$YOINK_PKG" ]]; then
   mkdir -p "$YOINK_PKG/tests/generated" "$YOINK_PKG/tests/discovered"
-  cp "$ASSETS_DIR/template-__init__.py" "$YOINK_PKG/__init__.py"
+  sed -e "s/<package>/$PACKAGE_NAME/g" -e "s|<url>|$REPO_URL|g" "$ASSETS_DIR/template-__init__.py" > "$YOINK_PKG/__init__.py"
   echo "  → ./$YOINK_PKG/__init__.py (created as package)"
   echo "  → ./$YOINK_PKG/tests/{generated,discovered}/ (created)"
 else

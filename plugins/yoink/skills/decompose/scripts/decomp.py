@@ -17,9 +17,22 @@ import json
 import re
 import subprocess
 import sys
+from dataclasses import dataclass, field
 from pathlib import Path
 
 QUEUE_FILE = Path(".claude/decomp-queue.json")
+
+
+@dataclass
+class DecompQueue:
+    pending: list[str] = field(default_factory=list)
+
+    def to_dict(self) -> dict[str, list[str]]:
+        return {"pending": self.pending}
+
+    @classmethod
+    def from_dict(cls, data: dict[str, list[str]]) -> "DecompQueue":
+        return cls(pending=data.get("pending", []))
 
 
 def ensure_queue_dir() -> None:
@@ -27,19 +40,19 @@ def ensure_queue_dir() -> None:
     QUEUE_FILE.parent.mkdir(parents=True, exist_ok=True)
 
 
-def read_queue() -> dict:
+def read_queue() -> DecompQueue:
     """Read queue file. Return empty state if file doesn't exist."""
     if QUEUE_FILE.exists():
         with QUEUE_FILE.open() as f:
-            return json.load(f)
-    return {"pending": []}
+            return DecompQueue.from_dict(json.load(f))
+    return DecompQueue()
 
 
-def write_queue(queue: dict) -> None:
+def write_queue(queue: DecompQueue) -> None:
     """Write queue file."""
     ensure_queue_dir()
     with QUEUE_FILE.open("w") as f:
-        json.dump(queue, f, indent=2)
+        json.dump(queue.to_dict(), f, indent=2)
 
 
 def get_dependencies(library: str) -> list[str]:
@@ -111,8 +124,8 @@ def enqueue(items: list[str]) -> None:
 
     added = []
     for item in items:
-        if item not in queue["pending"]:
-            queue["pending"].append(item)
+        if item not in queue.pending:
+            queue.pending.append(item)
             added.append(item)
 
     write_queue(queue)
@@ -121,22 +134,23 @@ def enqueue(items: list[str]) -> None:
         print(f"Enqueued: {', '.join(added)}")
     else:
         print("Nothing new to enqueue (all already pending)")
-    print(f"Queue: {len(queue['pending'])} pending")
+    print(f"Queue: {len(queue.pending)} pending")
 
 
-def dequeue() -> None:
-    """Pop next library from queue."""
+def dequeue() -> str | None:
+    """Pop next library from queue. Returns None when the queue is empty."""
     queue = read_queue()
 
-    if not queue["pending"]:
+    if not queue.pending:
         print("Queue empty. Decomposition complete.")
-        sys.exit(1)
+        return None
 
-    next_item = queue["pending"].pop(0)
+    next_item = queue.pending.pop(0)
     write_queue(queue)
 
     print(f"\nNEXT: {next_item}")
-    print(f"Queue: {len(queue['pending'])} remaining")
+    print(f"Queue: {len(queue.pending)} remaining")
+    return next_item
 
 
 def deps(library: str) -> None:
@@ -154,9 +168,9 @@ def status() -> None:
     """Print queue state."""
     queue = read_queue()
 
-    print(f"Pending: {len(queue['pending'])}")
-    if queue["pending"]:
-        for item in queue["pending"]:
+    print(f"Pending: {len(queue.pending)}")
+    if queue.pending:
+        for item in queue.pending:
             print(f"  - {item}")
 
 
@@ -191,17 +205,19 @@ Examples:
 
     args = parser.parse_args()
 
-    if args.command == "enqueue":
-        enqueue(args.items)
-    elif args.command == "dequeue":
-        dequeue()
-    elif args.command == "deps":
-        deps(args.library)
-    elif args.command == "status":
-        status()
-    else:
-        parser.print_help()
-        sys.exit(1)
+    match args.command:
+        case "enqueue":
+            enqueue(args.items)
+        case "dequeue":
+            if dequeue() is None:
+                sys.exit(1)
+        case "deps":
+            deps(args.library)
+        case "status":
+            status()
+        case _:
+            parser.print_help()
+            sys.exit(1)
 
 
 if __name__ == "__main__":

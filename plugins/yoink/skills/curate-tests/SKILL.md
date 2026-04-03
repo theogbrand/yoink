@@ -1,14 +1,14 @@
 ---
 name: curate-tests
 description: "Phase 2: Generate and discover tests, validate against real library. Only invoke when explicitly requested by the user or by the yoink orchestrator."
-argument-hint: "PROMPT --package PACKAGE_NAME"
+argument-hint: "PROMPT [--package PACKAGE_NAME] [--skip-test-discoverer]"
 ---
 
-# Test Curate
+# Curate Tests
 
-> **Do not invoke this skill unless explicitly requested.** It is called by `/yoink` or run standalone by the user.
+> **Do not invoke this skill unless explicitly requested.** It is called by `/yoink:yoink` or run standalone by the user.
 
-**Prerequisite:** `/setup` must have been run first (reference dir and real library must exist).
+**Prerequisite:** `/yoink:setup` must have been run first (reference dir and real library must exist).
 
 Parse your prompt to identify:
 - **Package name**: from the `Package:` line or `--package` argument
@@ -21,11 +21,18 @@ Parse your prompt to identify:
 
 ### 1. Discover relevant tests
 
-- If **`--skip-discovery` is present** then **skip to step 2**.
+- If **`--skip-test-discoverer` is present** then **skip to step 2**.
 
-Use the **test-discoverer** agent to search for relevant tests from the original library's test suite.
+Use the **yoink:test-discoverer** agent to search for relevant tests from the original library's test suite.
 
-Pass it the package name and target function.
+Pass input as JSON:
+
+```json
+{
+  "package_name": "<PACKAGE>",
+  "target_function": "<TARGET_FUNCTION>"
+}
+```
 
 > **Discovered tests are reference material only.** They exist so the test-generator
 > can study real-world patterns and assertions. They are **never executed** during
@@ -33,9 +40,16 @@ Pass it the package name and target function.
 
 ### 2. Generate focused tests
 
-Use the **test-generator** agent to write original pytest tests for the target function.
+Use the **yoink:test-generator** agent to write original pytest tests for the target function.
 
-Pass it the package name and target function.
+Pass input as JSON:
+
+```json
+{
+  "package_name": "<PACKAGE>",
+  "target_function": "<TARGET_FUNCTION>"
+}
+```
 
 ### 3. Validate generated tests against the real library
 
@@ -47,7 +61,8 @@ access, or fixtures that are not available.
 uv run ${CLAUDE_PLUGIN_ROOT}/scripts/run_tests.py --project-dir . 2>&1
 ```
 
-If any tests fail or error, investigate and fix the generated tests. Do NOT proceed to the next step until all generated tests pass against the real library.
+- If **all tests pass** then **proceed to the next step**.
+- If **any tests fail or error** then **investigate and fix the generated tests**. Do NOT proceed to the next step until all generated tests pass against the real library.
 
 ### 4. Rewrite imports
 
@@ -65,5 +80,6 @@ Run the test suite against the empty `yoink_<package>/` to confirm tests fail:
 uv run ${CLAUDE_PLUGIN_ROOT}/scripts/run_tests.py --project-dir . --summary-only
 ```
 
-Score should be ~0.0 (tests should fail against empty `yoink_<package>/`). If score > 0,
-something is wrong -- investigate before proceeding.
+Score should be ~0.0 (tests should fail against empty `yoink_<package>/`).
+
+- If **score > 0** then **something is wrong, investigate before proceeding**.

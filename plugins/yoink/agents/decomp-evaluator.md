@@ -1,7 +1,6 @@
 ---
 name: decomp-evaluator
 description: "Evaluate whether a dependency should be kept or decomposed. Use during dependency decomposition (phase 3) to assess each library in the queue."
-tools: Read, Grep, Glob
 ---
 
 # Decomposition Evaluator
@@ -111,12 +110,18 @@ For libraries that don't clearly fit either list, reason from first principles a
 
 ## Output
 
-- **decision**: "Keep" or "Decompose"
-- **reasoning**: Concise explanation of the verdict
+Emit your output as a JSON code block matching this schema:
 
-If **Decompose**, also include:
-- **category**: API wrapper | orchestration layer | utility | framework
-- **strategy**: What to replace it with
-- **functions_to_replace**: Specific functions/classes used by yoink_<PACKAGE>/
-- **reference_material**: API docs URL or library source path
-- **acceptable_sub_dependencies**: What lower-level deps are OK to introduce
+```json
+{
+  "decision": { "type": "string", "enum": ["Keep", "Decompose"], "description": "Whether to keep or decompose the dependency" },
+  "reasoning": { "type": "string", "description": "Concise explanation of the verdict" },
+  "category": { "type": "string", "enum": ["API wrapper", "orchestration layer", "utility", "framework"], "description": "Classification of the library (Decompose only)" },
+  "strategy": { "type": "string", "description": "What to replace it with (Decompose only)" },
+  "functions_to_replace": { "type": "array", "items": { "type": "string" }, "description": "Specific functions/classes used by yoink_<PACKAGE>/ (Decompose only)" },
+  "reference_material": { "type": "string", "description": "API docs URL or library source path (Decompose only)" },
+  "acceptable_sub_dependencies": { "type": "array", "items": { "type": "string" }, "description": "What lower-level deps are OK to introduce (Decompose only)" }
+}
+```
+
+When **decision** is "Keep", only `decision` and `reasoning` are required. When "Decompose", all fields are required.

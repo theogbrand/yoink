@@ -13,14 +13,54 @@ import subprocess
 import sys
 import tempfile
 import xml.etree.ElementTree as ET
+from dataclasses import dataclass
 from pathlib import Path
 
 
-def find_test_dir(project_dir: Path) -> str:
+@dataclass
+class TestResults:
+    passed: int
+    failed: int
+    errors: int
+
+    @property
+    def total(self) -> int:
+        return self.passed + self.failed + self.errors
+
+    @property
+    def score(self) -> float:
+        return self.passed / self.total if self.total > 0 else 0.0
+
+
+def parse_junit_xml(junit_xml_path: Path) -> TestResults:
+    """Parse structured results from JUnit XML.
+
+    pytest wraps <testsuite> inside a <testsuites> root, so we find the actual
+    <testsuite> element(s) and sum their attributes.
+    """
+    tree = ET.parse(junit_xml_path)
+    root = tree.getroot()
+
+    testsuite_elements = (
+        root.findall("testsuite") if root.tag == "testsuites" else [root]
+    )
+    total_tests = 0
+    failed = 0
+    errors = 0
+    for testsuite in testsuite_elements:
+        total_tests += int(testsuite.attrib.get("tests", 0))
+        failed += int(testsuite.attrib.get("failures", 0))
+        errors += int(testsuite.attrib.get("errors", 0))
+    passed = total_tests - failed - errors
+
+    return TestResults(passed=passed, failed=failed, errors=errors)
+
+
+def find_test_dir(project_dir: Path) -> Path:
     for d in sorted(project_dir.glob("yoink_*/tests/generated")):
         if d.is_dir():
-            return str(d)
-    return str(project_dir / "tests")
+            return d
+    return project_dir / "tests"
 
 
 def main() -> None:
@@ -44,7 +84,7 @@ def main() -> None:
                 sys.executable,
                 "-m",
                 "pytest",
-                test_dir,
+                str(test_dir),
                 "-v",
                 "--tb=short",
                 f"--junitxml={junit_xml_path}",
@@ -59,32 +99,14 @@ def main() -> None:
             print(result.stdout)
             print(result.stderr)
 
-        # Parse structured results from JUnit XML instead of scraping output.
-        # pytest wraps <testsuite> inside a <testsuites> root, so we need to
-        # find the actual <testsuite> element(s) and sum their attributes.
-        passed = failed = errors = 0
-        tree = ET.parse(junit_xml_path)
-        root = tree.getroot()
-
-        testsuite_elements = (
-            root.findall("testsuite") if root.tag == "testsuites" else [root]
-        )
-        total_tests = 0
-        for testsuite in testsuite_elements:
-            total_tests += int(testsuite.attrib.get("tests", 0))
-            failed += int(testsuite.attrib.get("failures", 0))
-            errors += int(testsuite.attrib.get("errors", 0))
-        passed = total_tests - failed - errors
-
-    total = passed + failed + errors
-    score = passed / total if total > 0 else 0.0
+        results = parse_junit_xml(junit_xml_path)
 
     print("\n--- Results ---")
-    print(f"score:          {score:.6f}")
-    print(f"passed:         {passed}")
-    print(f"failed:         {failed}")
-    print(f"errors:         {errors}")
-    print(f"total:          {total}")
+    print(f"score:          {results.score:.6f}")
+    print(f"passed:         {results.passed}")
+    print(f"failed:         {results.failed}")
+    print(f"errors:         {results.errors}")
+    print(f"total:          {results.total}")
 
 
 if __name__ == "__main__":

@@ -10,6 +10,18 @@ import argparse
 import json
 import re
 from pathlib import Path
+from typing import Literal, TypedDict
+
+CollectionState = Literal["functions_to_replace", "strategy"]
+
+
+class DecompContext(TypedDict, total=False):
+    category: str
+    strategy: str
+    functions_to_replace: list[str]
+    reference_material: str
+    acceptable_sub_dependencies: list[str]
+
 
 # Fields recognized by the markdown parser (lowercase label → dict key).
 _FIELD_HEADERS = {
@@ -21,10 +33,10 @@ _FIELD_HEADERS = {
 }
 
 
-def _parse_markdown_context(text: str) -> dict:
+def _parse_markdown_context(text: str) -> DecompContext:
     """Parse orchestrator evaluation markdown into the same dict as the JSON context."""
-    ctx: dict = {}
-    collecting: str | None = None  # key currently accumulating multi-line content
+    ctx: DecompContext = {}
+    collecting: CollectionState | None = None
 
     for raw_line in text.splitlines():
         line = re.sub(r"\*\*(.+?)\*\*", r"\1", raw_line).strip()
@@ -41,51 +53,84 @@ def _parse_markdown_context(text: str) -> dict:
         if matched_key:
             collecting = None  # stop any previous multi-line collection
 
-            if matched_key == "functions_to_replace":
-                if value:  # comma-separated on same line
-                    ctx["functions_to_replace"] = [
-                        i.strip() for i in value.split(",") if i.strip()
-                    ]
-                else:  # bullet list follows
-                    ctx["functions_to_replace"] = []
-                    collecting = "functions_to_replace"
+            match matched_key:
+                case "functions_to_replace":
+                    if value:  # comma-separated on same line
+                        ctx["functions_to_replace"] = [
+                            i.strip() for i in value.split(",") if i.strip()
+                        ]
+                    else:  # bullet list follows
+                        ctx["functions_to_replace"] = []
+                        collecting = "functions_to_replace"
 
-            elif matched_key == "acceptable_sub_dependencies":
-                if value and not value.lower().startswith("none"):
-                    ctx["acceptable_sub_dependencies"] = [
-                        re.sub(r"\s*\(.*?\)", "", i).strip()
-                        for i in value.split(",")
-                        if i.strip()
-                    ]
-                else:
-                    ctx["acceptable_sub_dependencies"] = []
+                case "acceptable_sub_dependencies":
+                    if value and not value.lower().startswith("none"):
+                        ctx["acceptable_sub_dependencies"] = [
+                            re.sub(r"\s*\(.*?\)", "", i).strip()
+                            for i in value.split(",")
+                            if i.strip()
+                        ]
+                    else:
+                        ctx["acceptable_sub_dependencies"] = []
 
-            elif matched_key == "strategy":
-                ctx["strategy"] = value
-                collecting = "strategy"
+                case "strategy":
+                    ctx["strategy"] = value
+                    collecting = "strategy"
 
-            else:
-                ctx[matched_key] = value
+                case "category":
+                    ctx["category"] = value
+                case "reference_material":
+                    ctx["reference_material"] = value
             continue
 
         # Continuation lines (multi-line fields).
         if collecting == "functions_to_replace" and line.startswith("- "):
-            ctx["functions_to_replace"].append(line[2:].strip())
+            ctx.setdefault("functions_to_replace", []).append(line[2:].strip())
         elif collecting == "strategy" and line:
-            ctx["strategy"] += "\n" + line
+            ctx["strategy"] = ctx.get("strategy", "") + "\n" + line
         elif line:
             collecting = None  # unrecognized non-empty line ends collection
 
     return ctx
 
 
+_JSON_BLOCK_PATTERN = re.compile(r"```json\s*\n(.*?)```", re.DOTALL)
+
+
+def _extract_json_from_agent_output(raw: str) -> DecompContext | None:
+    """Try to parse agent output as JSON — either raw JSON or a ```json block in markdown.
+
+    Agents are instructed to output JSON Schema but may wrap it in prose. Try
+    raw JSON first, then look for a fenced ```json block. Returns None if
+    neither works, so the caller can fall back to markdown parsing.
+    """
+    # Raw JSON (agent output is pure JSON with no surrounding text)
+    try:
+        parsed = json.loads(raw)
+        if isinstance(parsed, dict):
+            return parsed
+    except json.JSONDecodeError:
+        pass
+
+    # JSON fenced in a ```json code block within markdown prose
+    match = _JSON_BLOCK_PATTERN.search(raw)
+    if match:
+        try:
+            parsed = json.loads(match.group(1))
+            if isinstance(parsed, dict):
+                return parsed
+        except json.JSONDecodeError:
+            pass
+
+    return None
+
+
 def generate_state_body(args: argparse.Namespace) -> None:
     """Output the runtime variables as a markdown table for the state file body."""
     raw = Path(args.context).read_text()
-    try:
-        ctx = json.loads(raw)
-    except json.JSONDecodeError:
-        ctx = _parse_markdown_context(raw)
+    ctx: DecompContext = _extract_json_from_agent_output(
+        raw
+    ) or _parse_markdown_context(raw)
 
     sub_pkg = args.sub_package
     top_pkg = args.top_package
@@ -177,13 +222,14 @@ def main() -> None:
                 args, attr, getattr(args, attr).replace("-", "_").removeprefix("yoink_")
             )
 
-    if args.command == "generate-state-body":
-        generate_state_body(args)
-    elif args.command == "rewrite-sub-imports":
-        rewrite_sub_imports(args)
-    else:
-        parser.print_help()
-        raise SystemExit(1)
+    match args.command:
+        case "generate-state-body":
+            generate_state_body(args)
+        case "rewrite-sub-imports":
+            rewrite_sub_imports(args)
+        case _:
+            parser.print_help()
+            raise SystemExit(1)
 
 
 if __name__ == "__main__":

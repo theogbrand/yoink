@@ -18,6 +18,10 @@ def main() -> None:
     target = f"yoink_{args.package}".replace("-", "_")
     tests_dir = Path(target) / "tests" / "generated"
 
+    if not tests_dir.is_dir():
+        print(f"No test directory found at {tests_dir}")
+        raise SystemExit(1)
+
     count = 0
     for f in tests_dir.rglob("*.py"):
         content = f.read_text(errors="replace")

@@ -1,5 +1,6 @@
 """
-Yoink replacement implementation (__init__.py of yoink_<package>/).
+Yoink replacement for <package>.
+Functionality inspired by the <package> library (<url>).
 
 This package is the ONLY directory the agent modifies during the loop.
 Study .yoink/reference/ for the original source code.

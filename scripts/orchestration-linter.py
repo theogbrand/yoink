@@ -7,7 +7,9 @@ Validates these conventions in skills/*/SKILL.md:
 
   Sections:       ## headers (e.g., "## Phase 2: Test Curation")
   Steps:          ### N. headers, sequential per section (e.g., "### 1. Dequeue")
-  Agents:         **agent-name** agent (must exist in agents/)
+  Substeps:       #### a. headers, rendered as nested flow items
+  Agents:         **yoink:agent-name** agent (must exist in agents/)
+  Skills:         /yoink:skill-name references for sub-skills
   Conditionals:   - If **condition** then **action**.
   Loop start:     **Begin loop.** (before first loop step)
   Loop end:       **Loop back to step N.** (after last loop step, paired with Begin)
@@ -19,7 +21,12 @@ Validates these conventions in agents/*.md:
   Conditionals:   - If **condition** then **action**. (shared with skills)
   Scripts:        ${CLAUDE_PLUGIN_ROOT}/ or ${CLAUDE_SKILL_DIR}/ prefix (shared with skills)
   Input:          ## Input section with - **snake_case_key**: description parameters
-  Output:         ## Output section with - **snake_case_key**: description parameters
+  Output:         ## Output section with a JSON Schema code block
+
+  Input uses free-form bullet parameters (not JSON Schema) because the
+  orchestrator may pass input in varying formats and agents should be resilient
+  to that. Output uses JSON Schema because agents control their own output and
+  a standardized structure makes downstream parsing reliable.
 
 Rules (grouped by domain):
 
@@ -42,13 +49,16 @@ Rules (grouped by domain):
   OL303  Conditional missing bold condition/action
   OL304  Hardcoded .claude/plugins/ path
   OL305  Bare scripts/ path without variable prefix
+  OL306  Skill reference missing required /yoink: prefix
+  OL307  Agent reference missing required yoink: prefix
 
   Schema (OL4xx):
   OL401  Missing required frontmatter field (name, description)
   OL402  Malformed YAML frontmatter
   OL403  Agent missing ## Input section
   OL404  Agent missing ## Output section
-  OL405  Agent Input/Output parameter not in standard format
+  OL405  Agent Input parameter not in standard bullet format
+  OL406  Agent Output missing JSON Schema (```json block with type+description per field)
 
   Directory (OL5xx):
   OL501  Non-executable file in scripts/ (only .py, .sh, .js allowed)
@@ -60,12 +70,13 @@ Usage:
 """
 
 import argparse
+import json
 import re
 import sys
 from dataclasses import dataclass, field
 from enum import StrEnum
 from pathlib import Path
-from typing import Any, Literal
+from typing import Literal, TypedDict
 
 import yaml
 
@@ -81,6 +92,7 @@ BEGIN_LOOP_PATTERN = re.compile(r"^\*\*Begin loop\.\*\*", re.MULTILINE)
 LOOP_BACK_PATTERN = re.compile(r"^\*\*Loop back to step (\d+)\.\*\*", re.MULTILINE)
 # Use [ \t] (not \s) after the dot to avoid matching across newlines.
 STEP_HEADER_PATTERN = re.compile(r"^###\s+(\d+)\.[ \t]+(.*)", re.MULTILINE)
+SUBSTEP_HEADER_PATTERN = re.compile(r"^####\s+([a-z])\.[ \t]+(.*)", re.MULTILINE)
 SECTION_HEADER_PATTERN = re.compile(r"^##\s+(.+)$", re.MULTILINE)
 AGENT_PATTERN = re.compile(r"\*\*(\S+?)\*\*\s+agent")
 # Convention: - If **condition** then **action**.
@@ -91,8 +103,10 @@ CONDITIONAL_PATTERN = re.compile(
 # Convention: plugin scripts use ${CLAUDE_PLUGIN_ROOT}/ or ${CLAUDE_SKILL_DIR}/.
 PLUGIN_PATH_VAR = r"\$\{(?:CLAUDE_PLUGIN_ROOT|CLAUDE_SKILL_DIR)\}"
 SKILL_INVOKE_PATTERN = re.compile(r"Invoke\s+`?/(\S+?)`?\s")
+INLINE_SKILL_REFERENCE_PATTERN = re.compile(r"`/([A-Za-z0-9:_-]+)`")
 
 PLUGIN_PATH_VAR_CAPTURING = r"\$\{(CLAUDE_PLUGIN_ROOT|CLAUDE_SKILL_DIR)\}"
+YOINK_PREFIX = "yoink:"
 
 SCRIPT_PATTERNS = [
     # uv run python ${CLAUDE_PLUGIN_ROOT|CLAUDE_SKILL_DIR}/scripts/foo.py subcommand
@@ -113,6 +127,11 @@ StepType = Literal["skill", "agent", "inline"]
 DetailKind = Literal["agent", "runs", "conditional"]
 
 
+class Frontmatter(TypedDict, total=False):
+    name: str
+    description: str
+
+
 class LintRule(StrEnum):
     # Structure (OL1xx)
     STEP_HEADER_FORMAT = "OL101"
@@ -131,12 +150,15 @@ class LintRule(StrEnum):
     CONDITIONAL_UNBOLDED = "OL303"
     HARDCODED_PATH = "OL304"
     BARE_SCRIPT_PATH = "OL305"
+    SKILL_MISSING_PREFIX = "OL306"
+    AGENT_MISSING_PREFIX = "OL307"
     # Schema (OL4xx)
     FRONTMATTER_MISSING_FIELD = "OL401"
     FRONTMATTER_MALFORMED = "OL402"
     AGENT_MISSING_INPUT = "OL403"
     AGENT_MISSING_OUTPUT = "OL404"
     AGENT_PARAM_FORMAT = "OL405"
+    AGENT_OUTPUT_NOT_JSON_SCHEMA = "OL406"
     # Directory (OL5xx)
     NON_EXECUTABLE_IN_SCRIPTS = "OL501"
     NON_DOCS_IN_REFERENCES = "OL502"
@@ -166,18 +188,45 @@ class Conditional:
 
 
 @dataclass
-class Step:
+class Substep:
+    marker: str
     header: str
     body: str
-    num: int
-    step_type: StepType
-    # Set when step_type == "skill"; None otherwise.
+    kind: StepType
     skill_name: str | None = None
-    # Set when step_type == "agent"; None otherwise.
     agent_name: str | None = None
     conditionals: list[Conditional] = field(default_factory=list)
     scripts: list[str] = field(default_factory=list)
     details: list[StepDetail] = field(default_factory=list)
+
+
+@dataclass
+class _StepBase:
+    header: str
+    body: str
+    num: int
+    conditionals: list[Conditional] = field(default_factory=list)
+    scripts: list[str] = field(default_factory=list)
+    details: list[StepDetail] = field(default_factory=list)
+    substeps: list[Substep] = field(default_factory=list)
+
+
+@dataclass
+class SkillStep(_StepBase):
+    skill_name: str = ""
+
+
+@dataclass
+class AgentStep(_StepBase):
+    agent_name: str = ""
+
+
+@dataclass
+class InlineStep(_StepBase):
+    pass
+
+
+Step = SkillStep | AgentStep | InlineStep
 
 
 @dataclass
@@ -219,15 +268,16 @@ FRONTMATTER_PATTERN = re.compile(r"^---\n(.*?)^---\n", re.DOTALL | re.MULTILINE)
 
 def parse_frontmatter(
     content: str, filename: str | None = None
-) -> tuple[dict[str, Any], list[LintWarning]]:
+) -> tuple[Frontmatter, list[LintWarning]]:
     """Parse YAML frontmatter from a markdown file.
 
     Returns (parsed_dict, warnings). When filename is provided, malformed
     frontmatter produces an OL402 warning instead of silently returning {}.
     """
+    empty: Frontmatter = {}
     match = FRONTMATTER_PATTERN.match(content)
     if not match:
-        return {}, []
+        return empty, []
     try:
         parsed = yaml.safe_load(match.group(1))
     except yaml.YAMLError as exc:
@@ -243,7 +293,7 @@ def parse_frontmatter(
             if filename
             else []
         )
-        return {}, warning
+        return empty, warning
     if not isinstance(parsed, dict):
         warning = (
             [
@@ -257,7 +307,7 @@ def parse_frontmatter(
             if filename
             else []
         )
-        return {}, warning
+        return empty, warning
     return parsed, []
 
 
@@ -281,6 +331,46 @@ def _extract_param_keys(section_text: str) -> list[str]:
     return AGENT_PARAM_PATTERN.findall(section_text)
 
 
+def _extract_output_schema_keys(output_section_text: str) -> list[str]:
+    """Extract top-level output field names from an Output JSON Schema block."""
+    json_block_match = re.search(r"```json\n(.*?)```", output_section_text, re.DOTALL)
+    if json_block_match is None:
+        return []
+
+    try:
+        parsed_output_schema = json.loads(json_block_match.group(1))
+    except json.JSONDecodeError:
+        return []
+
+    if not isinstance(parsed_output_schema, dict):
+        return []
+
+    return [
+        field_name
+        for field_name, field_schema in parsed_output_schema.items()
+        if isinstance(field_schema, dict)
+    ]
+
+
+def _has_yoink_prefix(reference_name: str) -> bool:
+    return reference_name.startswith(YOINK_PREFIX)
+
+
+def _strip_yoink_prefix(reference_name: str) -> str:
+    if _has_yoink_prefix(reference_name):
+        return reference_name[len(YOINK_PREFIX) :]
+    return reference_name
+
+
+def _format_skill_reference(skill_name: str) -> str:
+    canonical_skill_name = _strip_yoink_prefix(skill_name)
+    return f"/{YOINK_PREFIX}{canonical_skill_name}"
+
+
+def _format_agent_reference(agent_name: str) -> str:
+    return f"{YOINK_PREFIX}{_strip_yoink_prefix(agent_name)}"
+
+
 def parse_agents() -> dict[str, AgentData]:
     """Read agent files and return {name: AgentData}."""
     agents: dict[str, AgentData] = {}
@@ -292,16 +382,19 @@ def parse_agents() -> dict[str, AgentData]:
         name = frontmatter.get("name")
         if not name:
             continue
+        canonical_agent_name = _strip_yoink_prefix(name)
         description = frontmatter.get("description", "")
 
         input_text = _extract_section_text(content, "Input")
         output_text = _extract_section_text(content, "Output")
 
-        agents[name] = AgentData(
-            name=name,
+        agents[canonical_agent_name] = AgentData(
+            name=canonical_agent_name,
             description=description,
             input_keys=_extract_param_keys(input_text) if input_text else [],
-            output_keys=_extract_param_keys(output_text) if output_text else [],
+            output_keys=(
+                _extract_output_schema_keys(output_text) if output_text else []
+            ),
         )
     return agents
 
@@ -314,16 +407,18 @@ def _format_script_label(groups: tuple[str | None, ...]) -> str:
       (path_var, script_path)        -> "${CLAUDE_PLUGIN_ROOT}/scripts/foo.py"
       (path_var, script_path, subcmd) -> "${CLAUDE_PLUGIN_ROOT}/scripts/foo.py dequeue"
     """
-    if len(groups) == 1:
-        return groups[0] or ""
-    if len(groups) == 2:
-        path_var, script_path = groups
-        return f"${{{path_var}}}/{script_path}"
-    path_var, script_path, subcommand = groups
-    label = f"${{{path_var}}}/{script_path}"
-    if subcommand:
-        label = f"{label} {subcommand}"
-    return label
+    match groups:
+        case (tool,):
+            return tool or ""
+        case (path_var, script_path):
+            return f"${{{path_var}}}/{script_path}"
+        case (path_var, script_path, subcommand):
+            label = f"${{{path_var}}}/{script_path}"
+            if subcommand:
+                label = f"{label} {subcommand}"
+            return label
+        case _:
+            return ""
 
 
 def _resolve_script_path(path_var: str, script_path: str, command_name: str) -> Path:
@@ -338,7 +433,7 @@ def _resolve_script_path(path_var: str, script_path: str, command_name: str) -> 
 
 
 def lint_frontmatter(
-    filename: str, frontmatter: dict[str, Any], required_fields: list[str]
+    filename: str, frontmatter: Frontmatter, required_fields: list[str]
 ) -> list[LintWarning]:
     """OL401: Check that required frontmatter fields are present."""
     warnings: list[LintWarning] = []
@@ -560,7 +655,6 @@ def lint_command(
 
     # OL401: Required frontmatter fields
     warnings.extend(lint_frontmatter(filename, frontmatter, ["name", "description"]))
-
     # Declarative single-line rules (OL101, OL103, OL301-OL305)
     warnings.extend(lint_line_rules(filename, lines))
 
@@ -569,36 +663,84 @@ def lint_command(
 
     # OL201: Agent references must point to known agents
     for match in AGENT_PATTERN.finditer(body):
-        agent_name = match.group(1)
-        if agent_name not in known_agents:
+        referenced_agent_name = match.group(1)
+        canonical_agent_name = _strip_yoink_prefix(referenced_agent_name)
+        line_num = next(
+            (
+                i
+                for i, line in enumerate(lines, 1)
+                if f"**{referenced_agent_name}**" in line
+            ),
+            0,
+        )
+        if not _has_yoink_prefix(referenced_agent_name):
+            warnings.append(
+                LintWarning(
+                    LintRule.AGENT_MISSING_PREFIX,
+                    filename,
+                    line_num,
+                    f"Agent references must use the '{YOINK_PREFIX}' prefix. "
+                    f"Found '**{referenced_agent_name}** agent'.",
+                )
+            )
+        if canonical_agent_name not in known_agents:
             line_num = next(
-                (i for i, line in enumerate(lines, 1) if f"**{agent_name}**" in line),
-                0,
+                (
+                    i
+                    for i, line in enumerate(lines, 1)
+                    if f"**{referenced_agent_name}**" in line
+                ),
+                line_num,
             )
             warnings.append(
                 LintWarning(
                     LintRule.AGENT_NOT_FOUND,
                     filename,
                     line_num,
-                    f"Agent '{agent_name}' referenced but not found in agents/",
+                    f"Agent '{referenced_agent_name}' referenced but not found in agents/",
                 )
             )
 
     # OL202: Skill invocations must point to existing skills
-    for match in SKILL_INVOKE_PATTERN.finditer(body):
-        skill_name = match.group(1)
-        skill_file = SKILLS_DIR / skill_name / "SKILL.md"
-        if not skill_file.exists():
+    seen_skill_references: set[tuple[str, int]] = set()
+    for pattern in (SKILL_INVOKE_PATTERN, INLINE_SKILL_REFERENCE_PATTERN):
+        for match in pattern.finditer(body):
+            referenced_skill_name = match.group(1)
             line_num = next(
-                (i for i, line in enumerate(lines, 1) if f"/{skill_name}" in line),
+                (
+                    i
+                    for i, line in enumerate(lines, 1)
+                    if f"/{referenced_skill_name}" in line
+                ),
                 0,
             )
+            if (referenced_skill_name, line_num) in seen_skill_references:
+                continue
+            seen_skill_references.add((referenced_skill_name, line_num))
+
+            canonical_skill_name = _strip_yoink_prefix(referenced_skill_name)
+            if not _has_yoink_prefix(referenced_skill_name):
+                warnings.append(
+                    LintWarning(
+                        LintRule.SKILL_MISSING_PREFIX,
+                        filename,
+                        line_num,
+                        "Skill references must use the '/yoink:' prefix. "
+                        f"Found '/{referenced_skill_name}'.",
+                    )
+                )
+
+            skill_file = SKILLS_DIR / canonical_skill_name / "SKILL.md"
+            if skill_file.exists():
+                continue
+
             warnings.append(
                 LintWarning(
                     LintRule.SKILL_NOT_FOUND,
                     filename,
                     line_num,
-                    f"Skill '/{skill_name}' invoked but not found in skills/",
+                    f"Skill '{_format_skill_reference(referenced_skill_name)}' "
+                    "invoked but not found in skills/",
                 )
             )
 
@@ -673,6 +815,93 @@ def _check_step_sequence(
     return []
 
 
+JSON_CODE_BLOCK_PATTERN = re.compile(r"```json\n(.*?)```", re.DOTALL)
+JSON_SCHEMA_REQUIRED_KEYS = {"type", "description"}
+
+
+def _lint_output_json_schema(
+    filename: str, output_text: str, file_lines: list[str]
+) -> list[LintWarning]:
+    """OL406: Validate that the Output section contains a valid JSON Schema code block.
+
+    Each top-level key in the JSON object must have at least 'type' and
+    'description' fields to qualify as a JSON Schema property definition.
+    """
+    warnings: list[LintWarning] = []
+    output_section_line = next(
+        (
+            i
+            for i, line in enumerate(file_lines, 1)
+            if re.match(r"^##\s+Output\s*$", line)
+        ),
+        0,
+    )
+
+    json_blocks = JSON_CODE_BLOCK_PATTERN.findall(output_text)
+    if not json_blocks:
+        warnings.append(
+            LintWarning(
+                LintRule.AGENT_OUTPUT_NOT_JSON_SCHEMA,
+                filename,
+                output_section_line,
+                "Output section must contain a ```json code block with a JSON Schema "
+                "defining each output field (each key needs 'type' and 'description').",
+            )
+        )
+        return warnings
+
+    for block in json_blocks:
+        try:
+            parsed = json.loads(block)
+        except json.JSONDecodeError as exc:
+            warnings.append(
+                LintWarning(
+                    LintRule.AGENT_OUTPUT_NOT_JSON_SCHEMA,
+                    filename,
+                    output_section_line,
+                    f"Output JSON code block is not valid JSON: {exc}",
+                )
+            )
+            continue
+
+        if not isinstance(parsed, dict):
+            warnings.append(
+                LintWarning(
+                    LintRule.AGENT_OUTPUT_NOT_JSON_SCHEMA,
+                    filename,
+                    output_section_line,
+                    "Output JSON Schema must be an object with field definitions.",
+                )
+            )
+            continue
+
+        for key, value in parsed.items():
+            if not isinstance(value, dict):
+                warnings.append(
+                    LintWarning(
+                        LintRule.AGENT_OUTPUT_NOT_JSON_SCHEMA,
+                        filename,
+                        output_section_line,
+                        f"Output field '{key}' must be a JSON Schema property "
+                        f"(object with 'type' and 'description'), got {type(value).__name__}.",
+                    )
+                )
+                continue
+            missing = JSON_SCHEMA_REQUIRED_KEYS - value.keys()
+            if missing:
+                warnings.append(
+                    LintWarning(
+                        LintRule.AGENT_OUTPUT_NOT_JSON_SCHEMA,
+                        filename,
+                        output_section_line,
+                        f"Output field '{key}' is missing required JSON Schema "
+                        f"key(s): {', '.join(sorted(missing))}.",
+                    )
+                )
+
+    return warnings
+
+
 def lint_agent(agent_file: Path) -> list[LintWarning]:
     """Check an agent file follows conventions."""
     warnings: list[LintWarning] = []
@@ -684,7 +913,6 @@ def lint_agent(agent_file: Path) -> list[LintWarning]:
 
     # OL401: Required frontmatter fields
     warnings.extend(lint_frontmatter(filename, frontmatter, ["name", "description"]))
-
     # Declarative single-line rules (OL101, OL103, OL301-OL305)
     warnings.extend(lint_line_rules(filename, lines))
 
@@ -720,38 +948,38 @@ def lint_agent(agent_file: Path) -> list[LintWarning]:
             )
         )
 
-    # OL405: Parameters in Input/Output must use - **snake_case_key**: description
-    for section_name, section_text in [("Input", input_text), ("Output", output_text)]:
-        if section_text is None:
-            continue
-        # Find the starting line of this section in the file
-        section_start = next(
+    # OL405: Input uses free-form bullets because the orchestrator may pass input
+    # in varying formats — agents should be resilient to non-JSON input.
+    if input_text is not None:
+        input_start = next(
             (
                 i
                 for i, line in enumerate(lines, 1)
-                if re.match(rf"^##\s+{re.escape(section_name)}\s*$", line)
+                if re.match(r"^##\s+Input\s*$", line)
             ),
             0,
         )
-        section_lines = section_text.split("\n")
-        for offset, line in enumerate(section_lines):
+        for offset, line in enumerate(input_text.split("\n")):
             stripped = line.strip()
-            # Skip empty lines, non-bullet lines, and conditional "If" lines
             if not stripped or not re.match(r"^[-*]\s+", stripped):
                 continue
             if re.match(r"^[-*]\s+If\s+\*\*", stripped):
                 continue
-            # Must match: - **snake_case_key**: description
             if not re.match(r"^[-*]\s+\*\*\w+\*\*:\s+\S", stripped):
                 warnings.append(
                     LintWarning(
                         LintRule.AGENT_PARAM_FORMAT,
                         filename,
-                        section_start + offset,
-                        f"Parameter in {section_name} must use '- **snake_case_key**: description'. "
+                        input_start + offset,
+                        f"Parameter in Input must use '- **snake_case_key**: description'. "
                         f"Found: {stripped}",
                     )
                 )
+
+    # OL406: Output uses JSON Schema because agents control their own output and
+    # a standardized structure makes downstream parsing reliable.
+    if output_text is not None:
+        warnings.extend(_lint_output_json_schema(filename, output_text, lines))
 
     return warnings
 
@@ -832,39 +1060,108 @@ def _parse_block(block: str) -> Section:
 
 def _classify_step(header: str, body: str, step_num: int) -> Step:
     """Classify a step by its primary type and extract structured details."""
-    agent_match = AGENT_PATTERN.search(body)
-    skill_match = SKILL_INVOKE_PATTERN.search(body)
+    parent_body, substeps = _split_substeps(body)
+    agent_match = AGENT_PATTERN.search(parent_body)
+    skill_match = SKILL_INVOKE_PATTERN.search(parent_body)
 
-    step_type: StepType
-    skill_name: str | None = None
-    agent_name: str | None = None
+    conditionals = [
+        Conditional(condition=cond.strip(), action=action.strip())
+        for cond, action in CONDITIONAL_PATTERN.findall(parent_body)
+    ]
+    scripts = _extract_scripts(parent_body)
+    common = {
+        "header": header.strip(),
+        "body": parent_body,
+        "num": step_num,
+        "conditionals": conditionals,
+        "scripts": scripts,
+        "substeps": substeps,
+    }
 
     if skill_match:
-        step_type = "skill"
-        skill_name = skill_match.group(1)
-    elif agent_match:
-        step_type = "agent"
-        agent_name = agent_match.group(1)
-    else:
-        step_type = "inline"
+        skill_name = _strip_yoink_prefix(skill_match.group(1))
+        return SkillStep(
+            **common,
+            details=_build_ordered_details(parent_body, "skill", None),
+            skill_name=skill_name,
+        )
+    if agent_match:
+        agent_name = _strip_yoink_prefix(agent_match.group(1))
+        return AgentStep(
+            **common,
+            details=_build_ordered_details(parent_body, "agent", agent_name),
+            agent_name=agent_name,
+        )
+    return InlineStep(
+        **common,
+        details=_build_ordered_details(parent_body, "inline", None),
+    )
 
+
+def _split_substeps(step_body: str) -> tuple[str, list[Substep]]:
+    substep_matches = list(SUBSTEP_HEADER_PATTERN.finditer(step_body))
+    if not substep_matches:
+        return step_body, []
+
+    parent_body = step_body[: substep_matches[0].start()]
+    substeps: list[Substep] = []
+    for index, match in enumerate(substep_matches):
+        start = match.start()
+        end = (
+            substep_matches[index + 1].start()
+            if index + 1 < len(substep_matches)
+            else len(step_body)
+        )
+        substeps.append(
+            _classify_substep(match.group(0), step_body[start:end], match.group(1))
+        )
+
+    return parent_body, substeps
+
+
+def _classify_substep(header: str, body: str, marker: str) -> Substep:
+    agent_match = AGENT_PATTERN.search(body)
+    skill_match = SKILL_INVOKE_PATTERN.search(body)
     conditionals = [
         Conditional(condition=cond.strip(), action=action.strip())
         for cond, action in CONDITIONAL_PATTERN.findall(body)
     ]
-
     scripts = _extract_scripts(body)
 
-    return Step(
+    if skill_match:
+        skill_name = _strip_yoink_prefix(skill_match.group(1))
+        return Substep(
+            marker=marker,
+            header=header.strip(),
+            body=body,
+            kind="skill",
+            skill_name=skill_name,
+            conditionals=conditionals,
+            scripts=scripts,
+            details=_build_ordered_details(body, "skill", None),
+        )
+
+    if agent_match:
+        agent_name = _strip_yoink_prefix(agent_match.group(1))
+        return Substep(
+            marker=marker,
+            header=header.strip(),
+            body=body,
+            kind="agent",
+            agent_name=agent_name,
+            conditionals=conditionals,
+            scripts=scripts,
+            details=_build_ordered_details(body, "agent", agent_name),
+        )
+
+    return Substep(
+        marker=marker,
         header=header.strip(),
         body=body,
-        num=step_num,
-        step_type=step_type,
-        skill_name=skill_name,
-        agent_name=agent_name,
+        kind="inline",
         conditionals=conditionals,
         scripts=scripts,
-        details=_build_ordered_details(body, step_type, agent_name),
+        details=_build_ordered_details(body, "inline", None),
     )
 
 
@@ -929,6 +1226,7 @@ def _extract_scripts(body: str) -> list[str]:
 
 def _clean_label(header: str) -> str:
     label = re.sub(r"^###\s+\d+\.\s*", "", header)
+    label = re.sub(r"^####\s+[a-z]\.\s*", "", label)
     label = re.sub(r"\*\*", "", label)
     label = label.strip()
     if len(label) > 60:
@@ -942,14 +1240,64 @@ def _clean_label(header: str) -> str:
 def _agent_signature(agent_name: str, agent_data: dict[str, AgentData]) -> str:
     """Format an agent detail label with I/O signature if available."""
     if agent_name not in agent_data:
-        return f"agent: {agent_name}"
+        return f"agent: {_format_agent_reference(agent_name)}"
     agent = agent_data[agent_name]
     input_sig = ", ".join(agent.input_keys) if agent.input_keys else ""
-    label = f"agent: {agent_name}({input_sig})"
+    label = f"agent: {_format_agent_reference(agent_name)}({input_sig})"
     if agent.output_keys:
         output_sig = ", ".join(agent.output_keys)
         label += f" \u2192 {output_sig}"
     return label
+
+
+def _render_detail_label(
+    detail: StepDetail,
+    kind: StepType,
+    agent_name: str | None,
+    agent_data: dict[str, AgentData] | None,
+) -> str:
+    if (
+        detail.kind == "agent"
+        and agent_data
+        and kind == "agent"
+        and agent_name is not None
+    ):
+        return _agent_signature(agent_name, agent_data)
+    return detail.label
+
+
+def _render_substeps(
+    substeps: list[Substep],
+    *,
+    prefix: str,
+    agent_data: dict[str, AgentData] | None,
+) -> list[str]:
+    lines: list[str] = []
+    for substep_index, substep in enumerate(substeps):
+        is_last_substep = substep_index == len(substeps) - 1
+        branch = "\u2514\u2500" if is_last_substep else "\u251c\u2500"
+        label = _clean_label(substep.header)
+        if substep.kind == "skill" and substep.skill_name is not None:
+            label += f" \u2192 {_format_skill_reference(substep.skill_name)}"
+        lines.append(f"{prefix}{branch} {substep.marker}. {label}")
+
+        detail_labels = [
+            _render_detail_label(
+                detail,
+                substep.kind,
+                substep.agent_name,
+                agent_data,
+            )
+            for detail in substep.details
+        ]
+        substep_continuation = "   " if is_last_substep else "\u2502  "
+        continuation_prefix = f"{prefix}{substep_continuation}"
+        for detail_index, detail_label in enumerate(detail_labels):
+            is_last_detail = detail_index == len(detail_labels) - 1
+            detail_branch = "\u2514\u2500" if is_last_detail else "\u251c\u2500"
+            lines.append(f"{continuation_prefix}{detail_branch} {detail_label}")
+
+    return lines
 
 
 def render_section(
@@ -977,27 +1325,36 @@ def render_section(
 
         # Label with optional skill annotation
         label = _clean_label(step.header)
-        if step.step_type == "skill":
-            label += f" \u2192 /{step.skill_name}"
+        if isinstance(step, SkillStep):
+            label += f" \u2192 {_format_skill_reference(step.skill_name)}"
         lines.append(f"{indent}{connector}{step.num}. {label}")
 
-        # Collect sub-lines in source order, enriching agent labels with I/O
-        sub_lines: list[str] = []
-        for detail in step.details:
-            if detail.kind == "agent" and agent_data and step.agent_name:
-                sub_lines.append(_agent_signature(step.agent_name, agent_data))
-            else:
-                sub_lines.append(detail.label)
+        detail_labels = [
+            _render_detail_label(
+                detail,
+                "agent" if isinstance(step, AgentStep) else "inline",
+                step.agent_name if isinstance(step, AgentStep) else None,
+                agent_data,
+            )
+            for detail in step.details
+        ]
 
-        # Don't render sub-lines for skill steps (the expansion replaces them)
-        if step.step_type != "skill":
-            for j, sub in enumerate(sub_lines):
-                is_last = j == len(sub_lines) - 1
+        if not isinstance(step, SkillStep):
+            total_children = len(detail_labels) + len(step.substeps)
+            for index, detail_label in enumerate(detail_labels):
+                is_last = index == total_children - 1 and not step.substeps
                 branch = "\u2514\u2500" if is_last else "\u251c\u2500"
-                lines.append(f"{indent}{connector}   {branch} {sub}")
+                lines.append(f"{indent}{connector}   {branch} {detail_label}")
+            lines.extend(
+                _render_substeps(
+                    step.substeps,
+                    prefix=f"{indent}{connector}   ",
+                    agent_data=agent_data,
+                )
+            )
 
         # Expand nested skill inline
-        if step.step_type == "skill" and skill_data and step.skill_name:
+        if isinstance(step, SkillStep) and skill_data and step.skill_name:
             skill_name = step.skill_name
             if skill_name in skill_data and skill_name not in expanding:
                 nested_indent = indent + connector + "   "
@@ -1037,7 +1394,12 @@ def render_command(
     agent_data: dict[str, AgentData] | None = None,
 ) -> list[str]:
     argument_hint = parse_frontmatter(content)[0].get("argument-hint")
-    header = f"/{command_name} {argument_hint}" if argument_hint else f"/{command_name}"
+    formatted_command_name = _format_skill_reference(command_name)
+    header = (
+        f"{formatted_command_name} {argument_hint}"
+        if argument_hint
+        else formatted_command_name
+    )
     lines = [header]
 
     sections = extract_sections(content)
@@ -1097,7 +1459,9 @@ def generate_flow() -> str:
             sig = f"({input_sig})"
             if output_sig:
                 sig += f" \u2192 {output_sig}"
-            output_lines.append(f"- **{name}**{sig}: {agent.description}")
+            output_lines.append(
+                f"- **{_format_agent_reference(name)}**{sig}: {agent.description}"
+            )
         output_lines.append("")
 
     output_lines.append("## Skill Flows")

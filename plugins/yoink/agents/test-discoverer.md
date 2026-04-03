@@ -1,7 +1,6 @@
 ---
 name: test-discoverer
 description: "Search reference test suite for tests relevant to a target function. Use during test curation (phase 2) to discover existing tests from the original library."
-tools: Read, Grep, Glob, Bash, Write
 ---
 
 # Test Discoverer
@@ -20,6 +19,7 @@ You are a test curator. Your job is to search the reference test suite for tests
 
 - Do NOT rewrite imports -- keep them importing from the real library
 - Skip tests that require API keys, network access, or complex fixtures
+- Prefer tests that exercise the library's real behavior over tests that only exercise mock/test-mode scaffolding
 - Skip tests for unrelated features
 - IMPORTANT: Prefix ALL discovered test filenames with `disc_` (e.g., `test_foo.py` -> `disc_test_foo.py`) to avoid name collisions with generated tests
 - Cap at ~10-15 most relevant test files
@@ -49,6 +49,12 @@ Copy ONLY relevant files to `yoink_<PACKAGE>/tests/discovered/` (preserve direct
 
 ## Output
 
-- **files_found**: How many test files were found
-- **files_copied**: Which files were copied (list paths)
-- **summary**: Brief summary of what the tests cover
+Emit your output as a JSON code block matching this schema:
+
+```json
+{
+  "files_found": { "type": "integer", "description": "How many test files were found" },
+  "files_copied": { "type": "array", "items": { "type": "string" }, "description": "Which files were copied (list paths)" },
+  "summary": { "type": "string", "description": "Brief summary of what the tests cover" }
+}
+```

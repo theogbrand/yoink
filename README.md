@@ -48,23 +48,23 @@ Add the yoink marketplace and install the plugin from within Claude Code:
 
 ### Usage
 
-Navigate to any project and run `/yoink`:
+Navigate to any project and run `/yoink:yoink`:
 
 ```bash
-/yoink "Replace usage of litellm with my own implementation" --url "https://github.com/BerriAI/litellm"
+/yoink:yoink "Replace usage of litellm with my own implementation" --url "https://github.com/BerriAI/litellm"
 ```
 
 ## Skills
 
 yoink runs three skills sequentially:
 
-1. **`/setup`** clones the target repo and scaffolds a local replacement package.
-2. **`/curate-tests`** studies the reference implementation and generates new tests, verified against the expectations of the original test suite.
-3. **`/decompose`** determines dependencies to keep or decompose, based on a set of principles we defined, such as "keeping foundational primitives regardless of how narrow they are used".
+1. **`/yoink:setup`** clones the target repo and scaffolds a local replacement package.
+2. **`/yoink:curate-tests`** studies the reference implementation and generates new tests, verified against the expectations of the original test suite.
+3. **`/yoink:decompose`** determines dependencies to keep or decompose, based on a set of principles we defined, such as "keeping foundational primitives regardless of how narrow they are used".
 
-The `/yoink` command runs all three in sequence.
+The `/yoink:yoink` command runs all three in sequence.
 
-### /yoink
+### /yoink:yoink
 
 Curate tests from a target package, then decompose its dependencies into a
 local, dependency-free replacement. Runs in three phases: setup (Phase 1), test
@@ -72,48 +72,48 @@ curation (Phase 2), and dependency decomposition (Phase 3).
 
 **Usage:**
 ```bash
-/yoink "<prompt>" --url "<github_url>" [--package "<package_name>"] [--skip-discovery]
+/yoink:yoink "<prompt>" --url "<github_url>" [--package "<package_name>"] [--skip-test-discoverer]
 ```
 
 **Options:**
 - `--url <github_url>` - GitHub repository URL to clone and decompose (required)
 - `--package <package_name>` - Override the package name (defaults to the repo name from the URL)
-- `--skip-discovery` - Skip the test discovery step (test generation still works without discovered tests)
+- `--skip-test-discoverer` - Skip the test discovery step (test generation still works without discovered tests)
 
-The individual phases of `/yoink` are also available as separate skills, useful if a run fails midway and you need to resume from a specific phase:
+The individual phases of `/yoink:yoink` are also available as separate skills, useful if a run fails midway and you need to resume from a specific phase:
 
-### /setup
+### /yoink:setup
 
 Scaffold the project: clone the target repo and install the real library for test validation.
 
 **Usage:**
 ```bash
-/setup --url "https://github.com/BerriAI/litellm"
+/yoink:setup --url "https://github.com/BerriAI/litellm"
 ```
 
 **Options:**
 - `--url <github_url>` - GitHub repository URL to clone (required)
 - `--package <package_name>` - Override the package name (defaults to the repo name from the URL)
 
-### /curate-tests
+### /yoink:curate-tests
 
-Phase 2: Generate and discover tests, then validate them against the real library. Requires `/setup` to have been run first.
+Phase 2: Generate and discover tests, then validate them against the real library. Requires `/yoink:setup` to have been run first.
 
 **Usage:**
 ```bash
-/curate-tests "I want to replace the usage of litellm in @sample.md with my own implementation" --package litellm
+/yoink:curate-tests "I want to replace the usage of litellm in @sample.md with my own implementation" --package litellm
 ```
 
 **Options:**
 - `--package <package_name>` - The target package name (required)
 
-### /decompose
+### /yoink:decompose
 
-Phase 3: Dependency decomposition. Seeds the queue with the target package and iteratively decomposes each dependency. Requires `/curate-tests` to have been completed first.
+Phase 3: Dependency decomposition. Seeds the queue with the target package and iteratively decomposes each dependency. Requires `/yoink:curate-tests` to have been completed first.
 
 **Usage:**
 ```bash
-/decompose --package litellm
+/yoink:decompose --package litellm
 ```
 
 **Options:**
@@ -155,7 +155,7 @@ claude --plugin-dir ../yoink/plugins/yoink
 ```
 
 ```bash
-/yoink "Replace the usage of litellm in @litellm-sample.md with my own implementation" --url "https://github.com/BerriAI/litellm"
+/yoink:yoink "Replace the usage of litellm in @litellm-sample.md with my own implementation" --url "https://github.com/BerriAI/litellm"
 ```
 
 ### Orchestration Linter

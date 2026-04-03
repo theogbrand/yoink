@@ -1,7 +1,6 @@
 ---
 name: decomp-implementer
 description: "Implement or replace a dependency in yoink_<package>/ based on a decomposition evaluation. Use during dependency decomposition (phase 3) after evaluation."
-tools: Read, Grep, Glob, Bash, Write, Edit
 ---
 
 # Decomposition Implementer — Build yoink_{sub_package}/
@@ -23,6 +22,7 @@ Read from `.claude/inner-yoink-loop.local.md` (markdown body, after YAML frontma
 
 ## Rules
 
+- **Implement real functionality.** Your replacement must do what the original library actually does — make real HTTP calls, parse real responses, handle real errors. Do not implement stubs, mock helpers, or test-mode-only logic. If the tests use mocks, look past the mocks to understand what real behavior is being tested
 - **One level only:** decompose to the immediate next layer down (e.g., orchestration layer -> underlying SDKs, API wrapper -> raw HTTP). Do NOT skip levels
 - Use your input variables to guide your implementation
 - **ONLY edit files within `yoink_{sub_package}/`**
@@ -74,6 +74,12 @@ grep "^score:" .claude/decomp-implementer-loop/{sub_package}-iteration-<N>-run.l
 
 ## Output
 
-- **completion_promise**: `DONE` or `MAX_ITERATIONS_REACHED`
-- **what_was_done**: Summary of changes
-- **new_imports**: List of external libraries that yoink_{sub_package}/ now imports as a result
+Emit your output as a JSON code block matching this schema:
+
+```json
+{
+  "completion_promise": { "type": "string", "enum": ["DONE", "MAX_ITERATIONS_REACHED"], "description": "Whether the implementation completed successfully or hit the iteration limit" },
+  "what_was_done": { "type": "string", "description": "Summary of changes made" },
+  "new_imports": { "type": "array", "items": { "type": "string" }, "description": "External libraries that yoink_{sub_package}/ now imports" }
+}
+```
