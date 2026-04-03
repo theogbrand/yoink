@@ -1,24 +1,24 @@
 {
-  "name": "slash-diy-marketplace",
+  "name": "yoink-marketplace",
   "owner": {
     "name": "ob1",
     "email": "b@ob1.info"
   },
   "metadata": {
-    "description": "Marketplace for slash-diy — decompose third-party packages into local, dependency-free replacements"
+    "description": "Marketplace for yoink — decompose third-party packages into local, dependency-free replacements"
   },
   "plugins": [
     {
-      "name": "slash-diy",
-      "source": "./plugins/slash-diy",
-      "description": "A plugin to clone packages from SDKs you don't quite trust",
+      "name": "yoink",
+      "source": "./plugins/yoink",
+      "description": "A plugin to clone dependencies you don't trust. No more supply chain attacks.",
       "version": "0.0.1",
       "author": {
         "name": "ob1",
         "email": "b@ob1.info"
       },
-      "homepage": "https://github.com/theogbrand/slash-diy",
-      "repository": "https://github.com/theogbrand/slash-diy",
+      "homepage": "https://github.com/theogbrand/yoink",
+      "repository": "https://github.com/theogbrand/yoink",
       "license": "MIT",
       "keywords": [
         "sdk",

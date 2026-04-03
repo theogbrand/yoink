@@ -8,6 +8,6 @@
     "openai._models.BaseModel (alias for OpenAIObject)",
     "openai.types.completion_usage.CompletionTokensDetails, CompletionUsage, PromptTokensDetails"
   ],
-  "reference_material": ".slash_diy/reference/openai/",
+  "reference_material": ".yoink/reference/openai/",
   "acceptable_sub_dependencies": ["httpx", "pydantic"]
 }

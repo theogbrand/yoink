@@ -1,16 +1,8 @@
 [project]
-name = "yoink"
+name = "yoink-project"
 version = "0.1.0"
 requires-python = ">=3.11"
-dependencies = [
-    "pyyaml>=6.0.3", #
-]
-
-[tool.pytest.ini_options]
-asyncio_mode = "auto"
-
-[tool.ty.src]
-exclude = [".agents/"]
+dependencies = []
 
 [dependency-groups]
 dev = [
@@ -20,9 +12,13 @@ dev = [
     "ty>=0.0.27",
 ]
 
+[tool.pytest.ini_options]
+python_files = ["gen_test_*.py", "test_*.py"]
+asyncio_mode = "auto"
+
 [tool.ruff]
 target-version = "py311"
-exclude = [".agents/"]
+exclude = [".yoink/", "*/tests/discovered/"]
 
 [tool.ruff.lint]
 select = [
@@ -47,6 +43,9 @@ ignore = [
     "RET504", # unnecessary return
     "ANN401", # dynamically typed expressions (Any) - needed for **kwargs passthrough
 ]
+
+[tool.ty.src]
+exclude = [".yoink/", "*/tests/discovered/"]
 
 [tool.ty.rules]
 division-by-zero = "error"

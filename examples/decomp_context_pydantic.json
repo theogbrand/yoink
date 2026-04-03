@@ -8,6 +8,6 @@
     "model_dump() → custom serialization method",
     "model_config with extra='allow' → __setattr__ permissiveness or **kwargs in __init__"
   ],
-  "reference_material": ".slash_diy/reference/pydantic/",
+  "reference_material": ".yoink/reference/pydantic/",
   "acceptable_sub_dependencies": []
 }

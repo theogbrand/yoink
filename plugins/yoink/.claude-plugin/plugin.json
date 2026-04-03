@@ -1,0 +1,21 @@
+{
+  "name": "yoink",
+  "version": "0.0.1",
+  "description": "A plugin to clone dependencies you don't trust. No more supply chain attacks.",
+  "author": {
+    "name": "ob1",
+    "email": "b@ob1.info",
+    "url": "https://github.com/theogbrand"
+  },
+  "homepage": "https://github.com/theogbrand/yoink",
+  "repository": "https://github.com/theogbrand/yoink",
+  "license": "MIT",
+  "keywords": [
+    "sdk",
+    "vendoring",
+    "decomposition",
+    "code-generation",
+    "testing",
+    "supply-chain-security"
+  ]
+}

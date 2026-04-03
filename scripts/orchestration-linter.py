@@ -70,12 +70,12 @@ from typing import Any, Literal
 import yaml
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
-PLUGIN_DIR = REPO_ROOT / "plugins" / "slash-diy"
+PLUGIN_DIR = REPO_ROOT / "plugins" / "yoink"
 SKILLS_DIR = PLUGIN_DIR / "skills"
 AGENTS_DIR = PLUGIN_DIR / "agents"
 OUTPUT_FILE = REPO_ROOT / "ORCHESTRATION_FLOW.md"
 
-ORCHESTRATOR_COMMANDS = ["setup", "test-curate", "decompose", "diy-decomp", "diy-loop"]
+ORCHESTRATOR_COMMANDS = ["setup", "test-curate", "decompose", "yoink", "yoink-loop"]
 
 BEGIN_LOOP_PATTERN = re.compile(r"^\*\*Begin loop\.\*\*", re.MULTILINE)
 LOOP_BACK_PATTERN = re.compile(r"^\*\*Loop back to step (\d+)\.\*\*", re.MULTILINE)
@@ -386,7 +386,7 @@ LINE_RULES: list[LineRule] = [
     ),
     LineRule(
         LintRule.HARDCODED_PATH,
-        re.compile(r"\.claude/plugins/slash-diy/\S+\.(py|sh)"),
+        re.compile(r"\.claude/plugins/yoink/\S+\.(py|sh)"),
         "Use ${CLAUDE_PLUGIN_ROOT}/ or ${CLAUDE_SKILL_DIR}/ instead of hardcoded plugin path.",
     ),
     LineRule(
