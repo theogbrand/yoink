@@ -27,7 +27,9 @@ Use the **test-discoverer** agent to search for relevant tests from the original
 
 Pass it the package name and target function.
 
-**Wait for this agent to complete before proceeding to step 2.**
+> **Discovered tests are reference material only.** They exist so the test-generator
+> can study real-world patterns and assertions. They are **never executed** during
+> validation or any later step -- only generated tests are run.
 
 ### 2. Generate focused tests
 
@@ -35,27 +37,17 @@ Use the **test-generator** agent to write original pytest tests for the target f
 
 Pass it the package name and target function.
 
-### 3. Validate tests against the real library
+### 3. Validate generated tests against the real library
 
-Run the generated tests against the installed real library:
+Run **only the generated tests** using the script below against the installed real library.
+Do NOT run discovered tests -- they are reference only and may depend on API keys, network
+access, or fixtures that are not available.
 
 ```bash
 uv run ${CLAUDE_PLUGIN_ROOT}/scripts/run_tests.py --project-dir . 2>&1
 ```
 
-**Prune failures:**
-- For each failing test file, decide: is this a bad test or an env issue?
-- Delete test files that fail due to missing API keys, network issues, or
-  dependencies on the full library that we can't satisfy
-- Re-run until all remaining tests pass
-- If **zero tests survive** then **abort** -- output an error explaining the situation.
-
-Print a summary:
-```
-Test validation results:
-  Generated: X/Y passed (removed: list of removed files)
-  Total surviving tests: N
-```
+If any tests fail or error, investigate and fix the generated tests. Do NOT proceed to the next step until all generated tests pass against the real library.
 
 ### 4. Rewrite imports
 
