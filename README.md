@@ -1,10 +1,8 @@
-# yoink
+# YOINK
 
-An AI agent that removes complex dependencies by reimplementing only what you need.
+YOINK (**Y**ou **O**nly **I**mplement **N**ative **K**nowledge) is an AI agent that removes complex dependencies by reimplementing only what you need.
 
-## What is yoink?
-
-yoink is an AI agent, built as a Claude Code plugin, that decomposes third-party
+YOINK is currently built as a Claude Code plugin that decomposes third-party
 dependencies into internal replacements. Instead of importing a 50k-line SDK
 for three function calls, point yoink at the package, describe what you need,
 and it reimplements only the functionality you actually use, verified against
