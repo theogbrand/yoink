@@ -8,16 +8,29 @@ for three function calls, point yoink at the package, describe what you need,
 and it reimplements only the functionality you actually use, verified against
 the expectations of the original library's tests.
 
+They say "don't reinvent the wheel" but what if you could?
+
 ### Why now?
 
 AI agents are getting good enough to own code end-to-end, and with supply chain
 attacks accelerating, fewer dependencies means less attack surface.
 
-Andrej Karpathy [called for](https://x.com/karpathy/status/2036487306585268612)
-re-evaluating the belief that "more dependencies are better." OpenAI's [harness
-engineering](https://openai.com/index/harness-engineering/) article echoed this:
-agents reason better from reimplemented functionality they have full visibility
-into, over opaque third-party libraries. 
+> Classical software engineering would have you believe that dependencies are
+> good (we're building pyramids from bricks), but imo this has to be
+> re-evaluated, and it's why I've been so growingly averse to them, preferring
+> to use LLMs to "yoink" functionality when it's simple enough and possible. -
+> [Andrej Karpathy](https://x.com/karpathy/status/2036487306585268612)
+
+OpenAI's [harness engineering](https://openai.com/index/harness-engineering/)
+article echoed this: agents reason better from reimplemented functionality they
+have full visibility into, over opaque third-party libraries.
+
+> In some cases, it was cheaper to have the agent reimplement subsets of
+> functionality than to work around opaque upstream behavior from public
+> libraries. For example, rather than pulling in a generic p-limit-style
+> package, we implemented our own map-with-concurrency helper: it’s tightly
+> integrated with our OpenTelemetry instrumentation, has 100% test coverage, and
+> behaves exactly the way our runtime expects. - Ryan Lopopolo (OpenAI)
 
 We are making this capability accessible to anyone.
 
@@ -46,7 +59,9 @@ The `/yoink` command runs all three in sequence.
 
 ### /yoink
 
-Curate tests from a target package, then decompose its dependencies into a local, dependency-free replacement. Runs in three phases: setup (Phase 1), test curation (Phase 2), and dependency decomposition (Phase 3).
+Curate tests from a target package, then decompose its dependencies into a
+local, dependency-free replacement. Runs in three phases: setup (Phase 1), test
+curation (Phase 2), and dependency decomposition (Phase 3).
 
 **Usage:**
 ```bash
@@ -106,7 +121,7 @@ Phase 3: Dependency decomposition. Seeds the queue with the target package and i
 - Cases where you only need a subset of a package's features
 
 **What is this not good for?**
-- Large, complex frameworks (React, Express, etc.)
+- Large, complex frameworks (Django, Flask, etc.)
 - Packages with deep platform-specific bindings
 - Cryptographic implementations (use audited libraries)
 
@@ -122,7 +137,9 @@ claude --plugin-dir .
 
 ### Orchestration Linter
 
-After editing skill or agent files, run the linter to validate conventions and regenerate the flow visualization in [ORCHESTRATION_FLOW.md](./ORCHESTRATION_FLOW.md):
+After editing skill or agent files, run the linter to validate conventions and
+regenerate the flow visualization in
+[ORCHESTRATION_FLOW.md](./ORCHESTRATION_FLOW.md):
 
 ```bash
 uv run python scripts/orchestration-linter.py --write
