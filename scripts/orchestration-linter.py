@@ -5,7 +5,7 @@ ORCHESTRATION_FLOW.md as a side effect.
 
 Validates these conventions in skills/*/SKILL.md:
 
-  Sections:       ## headers (e.g., "## Phase 0: Test Curation")
+  Sections:       ## headers (e.g., "## Phase 2: Test Curation")
   Steps:          ### N. headers, sequential per section (e.g., "### 1. Dequeue")
   Agents:         **agent-name** agent (must exist in agents/)
   Conditionals:   - If **condition** then **action**.

@@ -1,6 +1,6 @@
 ---
 name: decomp-evaluator
-description: "Evaluate whether a dependency should be kept or decomposed. Use during dependency decomposition (phase 1) to assess each library in the queue."
+description: "Evaluate whether a dependency should be kept or decomposed. Use during dependency decomposition (phase 3) to assess each library in the queue."
 tools: Read, Grep, Glob
 ---
 

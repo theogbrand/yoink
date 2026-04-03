@@ -1,6 +1,6 @@
 ---
 name: decompose
-description: "Phase 1: Dependency decomposition. Only invoke when explicitly requested by the user or by the yoink orchestrator."
+description: "Phase 3: Dependency decomposition. Only invoke when explicitly requested by the user or by the yoink orchestrator."
 argument-hint: "--package PACKAGE_NAME"
 ---
 

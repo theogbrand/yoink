@@ -1,6 +1,6 @@
 ---
 name: test-discoverer
-description: "Search reference test suite for tests relevant to a target function. Use during test curation (phase 0) to discover existing tests from the original library."
+description: "Search reference test suite for tests relevant to a target function. Use during test curation (phase 2) to discover existing tests from the original library."
 tools: Read, Grep, Glob, Bash, Write
 ---
 

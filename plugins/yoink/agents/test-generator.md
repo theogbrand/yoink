@@ -1,6 +1,6 @@
 ---
 name: test-generator
-description: "Generate focused pytest tests for a target function by studying reference implementation. Use during test curation (phase 0) after test discovery."
+description: "Generate focused pytest tests for a target function by studying reference implementation. Use during test curation (phase 2) after test discovery."
 tools: Read, Grep, Glob, Write, Bash
 ---
 

@@ -30,14 +30,14 @@ claude --plugin-dir ../yoink/plugins/yoink
 ```
 
 ```bash
-/yoink "I want to replace the usage of litellm in @litellm-sample.md with my own implementation. make it minimal so that it only implements what we need as a replacement and not to be as robust for all other cases in the original library. although minimal it still has to be secure and verified via testing" --url "https://github.com/BerriAI/litellm"
+/yoink "Replace the usage of litellm in @litellm-sample.md with my own implementation" --url "https://github.com/BerriAI/litellm"
 ```
 
 ## Skills
 
 ### /yoink
 
-Curate tests from a target package, then decompose its dependencies into a local, dependency-free replacement. Runs in two phases: test curation (Phase 0) followed by dependency decomposition (Phase 1).
+Curate tests from a target package, then decompose its dependencies into a local, dependency-free replacement. Runs in three phases: setup (Phase 1), test curation (Phase 2), and dependency decomposition (Phase 3).
 
 **Usage:**
 ```bash
@@ -66,7 +66,7 @@ Scaffold the project: clone the target repo and install the real library for tes
 
 ### /test-curate
 
-Phase 0: Generate and discover tests, then validate them against the real library. Requires `/setup` to have been run first.
+Phase 2: Generate and discover tests, then validate them against the real library. Requires `/setup` to have been run first.
 
 **Usage:**
 ```bash
@@ -78,7 +78,7 @@ Phase 0: Generate and discover tests, then validate them against the real librar
 
 ### /decompose
 
-Phase 1: Dependency decomposition. Seeds the queue with the target package and iteratively decomposes each dependency. Requires `/test-curate` to have been completed first.
+Phase 3: Dependency decomposition. Seeds the queue with the target package and iteratively decomposes each dependency. Requires `/test-curate` to have been completed first.
 
 **Usage:**
 ```bash
@@ -107,71 +107,9 @@ Phase 1: Dependency decomposition. Seeds the queue with the target package and i
 claude --plugin-dir .
 ```
 
-<!-- TODO: Rewrite this once tested -->
-<!-- ## Testing Inner Ralph Loop
-
-The inner ralph loop builds a `yoink_<sub_package>/` replacement for a sub-dependency, gated by the top-level (Level 0) test suite. It is self-contained and can be tested independently from the full yoink-loop.
-
-### Prerequisites
-
-You need a project that has already completed Phase 0 (curated test suite exists and passes against the real library). For example, `lite-llm-lite/` with `yoink_litellm/tests/` already set up.
-
-### 1. Create a decomposition context
-
-The context can be **JSON** or **markdown** (the orchestrator's evaluate step outputs markdown directly).
-
-**JSON format** — save as `decomp_context.json`:
-
-```json
-{
-  "category": "Utilities / Data Structures & Algorithms",
-  "strategy": "Extract and inline specific functions used by yoink_litellm",
-  "functions_to_replace": ["BaseMetadata", "GroupedMetadata", "Gt", "Ge", "Lt", "Le"],
-  "reference_material": ".yoink/reference/annotated_types/",
-  "acceptable_sub_dependencies": ["typing_extensions"]
-}
-```
-
-**Markdown format** — save evaluation output as `decomp_context.md`:
-
-Example for `openai`: refer to examples/decomp_context_openai.md
-
-Example for `pydantic`: refer to examples/decomp_context_pydantic.md
-
-### 2. Generate the state body
-
-```bash
-uv run inner_ralph.py generate-state-body \
-  --context decomp_context.md \
-  --top-package litellm \
-  --sub-package openai \
-  --max-iterations 30
-```
-
-The `--context` flag accepts either JSON or markdown — format is auto-detected. This outputs a markdown table of runtime variables that becomes the body of `.claude/inner-yoink-loop.local.md`. The decomp-implementer agent reads these variables at runtime.
-
-### 3. Run it
-
-Feed the generated prompt to a Claude agent. The agent will:
-
-1. **Pre-flight**: Verify Level 0 tests pass with the real sub-package, rewrite imports in `yoink_<top_pkg>/` source to point at `yoink_<sub_pkg>`, scaffold the sub-package directory
-2. **Loop**: Iteratively build `yoink_<sub_pkg>/` by studying failing tests, reading reference code, and committing changes (reverting on regression)
-3. **Exit**: When all Level 0 tests pass (score == 1.0) or max iterations reached
-
-### Utilities
-
-**Rewrite sub-package imports** (used during pre-flight):
-
-```bash
-uv run inner_ralph.py rewrite-sub-imports \
-  --sub-package annotated-types \
-  --target-dir yoink_litellm
-```
-
-Rewrites `from annotated_types` / `import annotated_types` to `yoink_annotated_types` in source files only (skips `tests/` directory). -->
 ### Orchestration Linter
 
-After editing skill or agent files, run the linter to validate conventions and regenerate the flow visualization:
+After editing skill or agent files, run the linter to validate conventions and regenerate the flow visualization in [ORCHESTRATION_FLOW.md](./ORCHESTRATION_FLOW.md):
 
 ```bash
 uv run python scripts/orchestration-linter.py --write
