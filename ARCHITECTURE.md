@@ -26,14 +26,11 @@ plugins/yoink/
 │   │   │   └── prepare.py          # Clones target repo to .yoink/reference/
 │   │   └── assets/                 # Template files for scaffolding
 │   ├── curate-tests/                # Phase 2: discover/generate tests
-│   │   ├── SKILL.md
-│   │   └── scripts/
-│   │       └── rewrite_imports.py  # Rewrite imports from <pkg> to yoink_<pkg>
+│   │   └── SKILL.md
 │   └── decompose/                  # Phase 3: dependency decomposition loop
 │       ├── SKILL.md
 │       └── scripts/
 │           ├── decomp.py           # Queue management (enqueue/dequeue/deps/status)
-│           ├── inner_ralph.py      # State body generation, sub-package import rewriting
 │           └── activate-inner-yoink-loop.sh  # Seed loop state file with frontmatter
 │
 ├── agents/                         # AI agents for complex reasoning
@@ -49,6 +46,7 @@ plugins/yoink/
 │   └── subagent-stop-hook.sh
 │
 └── scripts/
+    ├── rewrite_imports.py          # Rewrite imports from <pkg> to yoink_<pkg>
     └── run_tests.py                # Run test suite, compute pass/fail score
 
 scripts/
@@ -147,9 +145,8 @@ Scripts handle deterministic, I/O-heavy operations that don't need AI reasoning.
 |--------|---------|
 | `setup.sh` | Clone repo, install library, scaffold directories |
 | `prepare.py` | Clone target repo to `.yoink/reference/` |
-| `rewrite_imports.py` | Rewrite test imports to `yoink_<pkg>` namespace |
+| `rewrite_imports.py` | Rewrite imports from `<pkg>` to `yoink_<pkg>` in a target directory |
 | `decomp.py` | Queue management (enqueue, dequeue, deps, status) |
-| `inner_ralph.py` | Generate loop state body, rewrite sub-package imports |
 | `run_tests.py` | Execute pytest, compute pass/fail score |
 | `orchestration-linter.py` | Validate skill/agent conventions |
 
@@ -175,10 +172,10 @@ The inner implementation loop uses a stop hook (`stop-hook.sh`) to intercept ses
 
 ### Import Rewriting
 
-A two-stage rewrite strategy ensures tests validate the right code:
+A two-stage rewrite strategy ensures tests validate the right code. Both stages use `rewrite_imports.py` with different `--target-dir` scopes:
 
-1. **Phase 2**: `rewrite_imports.py` changes test imports from the real package (`from litellm import ...`) to the yoink namespace (`from yoink_litellm import ...`)
-2. **Phase 3**: `inner_ralph.py rewrite-sub-imports` updates the yoink package's internal imports to reference decomposed sub-packages (`from yoink_openai import ...` instead of `from openai import ...`)
+1. **Phase 2**: `rewrite_imports.py --target-dir yoink_<pkg>/tests/generated` changes test imports from the real package (`from litellm import ...`) to the yoink namespace (`from yoink_litellm import ...`)
+2. **Phase 3**: `rewrite_imports.py --target-dir yoink_<top_package>` updates the yoink package's imports to reference decomposed sub-packages (`from yoink_openai import ...` instead of `from openai import ...`)
 
 ### Foundational Primitives
 

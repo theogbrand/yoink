@@ -69,7 +69,7 @@ uv run ${CLAUDE_PLUGIN_ROOT}/scripts/run_tests.py --project-dir . 2>&1
 After validation passes, rewrite imports in generated tests so they target `yoink_<package>/`:
 
 ```bash
-uv run ${CLAUDE_SKILL_DIR}/scripts/rewrite_imports.py --package <PACKAGE>
+uv run ${CLAUDE_PLUGIN_ROOT}/scripts/rewrite_imports.py --package <PACKAGE> --target-dir yoink_<PACKAGE>/tests/generated
 ```
 
 ### 5. Sanity check

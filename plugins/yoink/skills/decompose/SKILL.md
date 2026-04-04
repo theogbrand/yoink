@@ -73,7 +73,7 @@ uv run ${CLAUDE_PLUGIN_ROOT}/scripts/run_tests.py --project-dir . 2>&1
 Swap `{sub_package}` imports in `yoink_{top_package}/` source code to point at `yoink_{sub_package}`:
 
 ```bash
-uv run inner_ralph.py rewrite-sub-imports --sub-package {sub_package} --target-dir yoink_{top_package}
+uv run ${CLAUDE_PLUGIN_ROOT}/scripts/rewrite_imports.py --package {sub_package} --target-dir yoink_{top_package}
 ```
 
 #### c. Scaffold the sub-package
