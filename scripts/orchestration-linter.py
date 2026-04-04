@@ -59,6 +59,9 @@ Rules (grouped by domain):
   OL404  Agent missing ## Output section
   OL405  Agent Input missing JSON Schema or reference-only note
   OL406  Agent Output missing JSON Schema (```json block with type+description per field)
+  OL408  Frontmatter name format (lowercase alphanumeric + hyphens, max 64 chars)
+  OL409  Frontmatter name/description contains XML tags
+  OL410  Frontmatter description exceeds 1024 characters
 
   Directory (OL5xx):
   OL501  Non-executable file in scripts/ (only .py, .sh, .js allowed)
@@ -159,6 +162,11 @@ class LintRule(StrEnum):
     AGENT_MISSING_OUTPUT = "OL404"
     AGENT_PARAM_FORMAT = "OL405"
     AGENT_OUTPUT_NOT_JSON_SCHEMA = "OL406"
+    # Frontmatter values (OL4xx continued)
+    # Spec: platform.claude.com/docs/en/agents-and-tools/agent-skills/overview
+    FRONTMATTER_NAME_FORMAT = "OL408"
+    FRONTMATTER_XML_TAGS = "OL409"
+    FRONTMATTER_DESCRIPTION_TOO_LONG = "OL410"
     # Directory (OL5xx)
     NON_EXECUTABLE_IN_SCRIPTS = "OL501"
     NON_DOCS_IN_REFERENCES = "OL502"
@@ -467,6 +475,68 @@ def lint_frontmatter(
     return warnings
 
 
+def lint_frontmatter_values(
+    filename: str, frontmatter: Frontmatter
+) -> list[LintWarning]:
+    """OL408/OL409/OL410: Check frontmatter field values against the Agent Skills spec.
+
+    Spec: platform.claude.com/docs/en/agents-and-tools/agent-skills/overview
+    """
+    warnings: list[LintWarning] = []
+    name = frontmatter.get("name", "")
+    description = frontmatter.get("description", "")
+
+    # OL408: name must be lowercase alphanumeric + hyphens, max 64 chars
+    if name:
+        if not FRONTMATTER_NAME_PATTERN.fullmatch(name):
+            warnings.append(
+                LintWarning(
+                    LintRule.FRONTMATTER_NAME_FORMAT,
+                    filename,
+                    1,
+                    f"Name must contain only lowercase letters, numbers, and hyphens "
+                    f"(pattern: [a-z0-9-]+). Found: '{name}'",
+                )
+            )
+        if len(name) > FRONTMATTER_NAME_MAX_LENGTH:
+            warnings.append(
+                LintWarning(
+                    LintRule.FRONTMATTER_NAME_FORMAT,
+                    filename,
+                    1,
+                    f"Name must be at most {FRONTMATTER_NAME_MAX_LENGTH} characters. "
+                    f"Found: {len(name)} characters",
+                )
+            )
+
+    # OL409: name and description must not contain XML-like tags
+    for field_name, value in [("name", name), ("description", description)]:
+        if value and XML_TAG_PATTERN.search(value):
+            warnings.append(
+                LintWarning(
+                    LintRule.FRONTMATTER_XML_TAGS,
+                    filename,
+                    1,
+                    f"'{field_name}' must not contain XML tags (they break system prompt "
+                    f"injection). Found in: '{value[:80]}'",
+                )
+            )
+
+    # OL410: description must not exceed 1024 characters
+    if description and len(description) > FRONTMATTER_DESCRIPTION_MAX_LENGTH:
+        warnings.append(
+            LintWarning(
+                LintRule.FRONTMATTER_DESCRIPTION_TOO_LONG,
+                filename,
+                1,
+                f"Description must be at most {FRONTMATTER_DESCRIPTION_MAX_LENGTH} characters. "
+                f"Found: {len(description)} characters",
+            )
+        )
+
+    return warnings
+
+
 LINE_RULES: list[LineRule] = [
     # Structure
     LineRule(
@@ -598,6 +668,13 @@ def lint_script_existence(
     return warnings
 
 
+# Frontmatter value constraints from the Anthropic Agent Skills spec:
+# platform.claude.com/docs/en/agents-and-tools/agent-skills/overview
+FRONTMATTER_NAME_PATTERN = re.compile(r"^[a-z0-9-]+$")
+FRONTMATTER_NAME_MAX_LENGTH = 64
+FRONTMATTER_DESCRIPTION_MAX_LENGTH = 1024
+XML_TAG_PATTERN = re.compile(r"<[A-Za-z][^>]*>")
+
 EXECUTABLE_EXTENSIONS = {".py", ".sh", ".js"}
 SKILL_MD_MAX_LINES = 500
 
@@ -674,6 +751,8 @@ def lint_command(
 
     # OL401: Required frontmatter fields
     warnings.extend(lint_frontmatter(filename, frontmatter, ["name", "description"]))
+    # OL408/OL409/OL410: Frontmatter value constraints
+    warnings.extend(lint_frontmatter_values(filename, frontmatter))
     # Declarative single-line rules (OL101, OL103, OL301-OL305)
     warnings.extend(lint_line_rules(filename, lines))
 
@@ -1006,6 +1085,8 @@ def lint_agent(agent_file: Path) -> list[LintWarning]:
 
     # OL401: Required frontmatter fields
     warnings.extend(lint_frontmatter(filename, frontmatter, ["name", "description"]))
+    # OL408/OL409/OL410: Frontmatter value constraints
+    warnings.extend(lint_frontmatter_values(filename, frontmatter))
     # Declarative single-line rules (OL101, OL103, OL301-OL305)
     warnings.extend(lint_line_rules(filename, lines))
 
@@ -1580,6 +1661,11 @@ def main() -> None:
         action="store_true",
         help="Write ORCHESTRATION_FLOW.md after linting",
     )
+    parser.add_argument(
+        "--json",
+        action="store_true",
+        help="Output lint warnings as a JSON array (for CI/IDE integration)",
+    )
     args = parser.parse_args()
 
     agents = parse_agents()
@@ -1588,13 +1674,28 @@ def main() -> None:
     # Linting is always the primary action
     warnings = run_lint(known_agent_names)
     if warnings:
-        print(f"\u26a0\ufe0f  {len(warnings)} convention warning(s):")
-        for warning in warnings:
-            print(warning)
-        print()
+        if args.json:
+            json_warnings = [
+                {
+                    "rule": warning.rule.value,
+                    "file": warning.file,
+                    "line": warning.line,
+                    "message": warning.message,
+                }
+                for warning in warnings
+            ]
+            print(json.dumps(json_warnings, indent=2))
+        else:
+            print(f"\u26a0\ufe0f  {len(warnings)} convention warning(s):")
+            for warning in warnings:
+                print(warning)
+            print()
         sys.exit(1)
 
-    print("\u2705 All commands follow conventions")
+    if args.json:
+        print("[]")
+    else:
+        print("\u2705 All commands follow conventions")
 
     # Flow visualization is a side effect
     flow = generate_flow()

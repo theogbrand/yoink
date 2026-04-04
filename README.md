@@ -36,6 +36,10 @@ We are making this capability accessible to anyone.
 
 ## Getting Started
 
+### Prerequisites
+
+- [uv](https://docs.astral.sh/uv/) — used for Python dependency management and script execution
+
 ### Install
 
 Add the yoink marketplace and install the plugin from within Claude Code:

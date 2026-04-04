@@ -55,7 +55,7 @@ Pass input as JSON:
 
 Complete these steps IN ORDER before entering the loop.
 
-> **Exception:** When the dequeued item is `{original_package}` (the first item in the queue), skip steps 3a–3c and go straight to 3d. Baseline verification (3a) was already completed by `/curate-tests`, scaffolding (3c) was already done by `/setup`, and import rewriting (3b) is a no-op for the original package since there are no sub-package imports to rewrite yet.
+> **Exception:** When the dequeued item is `{original_package}` (the first item in the queue), skip steps 3a–3c and go straight to 3d. Baseline verification (3a) was already completed by `/yoink:curate-tests`, scaffolding (3c) was already done by `/yoink:setup`, and import rewriting (3b) is a no-op for the original package since there are no sub-package imports to rewrite yet.
 
 #### a. Verify baseline
 

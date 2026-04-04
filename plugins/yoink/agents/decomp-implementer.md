@@ -1,6 +1,6 @@
 ---
 name: decomp-implementer
-description: "Implement or replace a dependency in yoink_<package>/ based on a decomposition evaluation. Use during dependency decomposition (phase 3) after evaluation."
+description: "Implement or replace a dependency in the yoink package directory based on a decomposition evaluation. Use during dependency decomposition (phase 3) after evaluation."
 ---
 
 # Decomposition Implementer — Build yoink_{sub_package}/
